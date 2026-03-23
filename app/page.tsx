@@ -9,6 +9,59 @@ import NoeStateMatrix from "@/components/NoeStateMatrix"
 import NoeImage from "@/components/NoeImage"
 import { MOOD_COLORS, MOOD_ACCENT, type NoeUIState } from "@/lib/noe-state"
 
+const CA = "82KHJf2YVWhxx9F6cgipJRZ8eg6rD7oSeFMmN3mWpump"
+
+function CABar({ accent }: { accent: string }) {
+  const [copied, setCopied] = useState(false)
+
+  function copy() {
+    navigator.clipboard.writeText(CA)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="border-t border-white/5 px-4 py-3 flex items-center justify-center gap-3">
+      <span className="font-mono text-[10px] text-white/25 uppercase tracking-widest hidden sm:block">
+        CA
+      </span>
+      <span className="font-mono text-xs text-white/40 tracking-wider break-all text-center">
+        {CA}
+      </span>
+      <button
+        onClick={copy}
+        className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-lg border font-mono text-[10px] uppercase tracking-widest transition-all"
+        style={{
+          borderColor: copied ? `${accent}66` : "rgba(255,255,255,0.08)",
+          color: copied ? accent : "rgba(255,255,255,0.3)",
+          background: copied ? `${accent}11` : "transparent",
+        }}
+      >
+        {copied ? (
+          <>
+            <motion.span
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              className="text-[10px]"
+            >
+              ✓
+            </motion.span>
+            Copied
+          </>
+        ) : (
+          <>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copy
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
 const BOOT_STATE: NoeUIState = {
   mood: "dormant",
   energy: 0,
