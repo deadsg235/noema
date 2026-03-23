@@ -1,4 +1,6 @@
 export * from "./types"
+export * from "./neural"
+export * from "./cognition"
 export * from "./engine"
 export * from "./memory"
 export * from "./personality"

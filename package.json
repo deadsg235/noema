@@ -1,12 +1,19 @@
 {
   "name": "noema",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "app:dev": "concurrently -n \"next,electron\" -c \"cyan,magenta\" \"next dev\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
+    "app:build": "next build && electron-builder --dir",
+    "app:dist": "next build && electron-builder",
+    "app:dist:win": "next build && electron-builder --win",
+    "app:dist:mac": "next build && electron-builder --mac",
+    "app:dist:linux": "next build && electron-builder --linux"
   },
   "dependencies": {
     "framer-motion": "^12.38.0",
@@ -19,9 +26,58 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^36.4.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.noema.agent",
+    "productName": "NOEMA",
+    "copyright": "Copyright © 2025 NOEMA-AGENT",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".next",
+        "to": "app/.next"
+      },
+      {
+        "from": "public",
+        "to": "app/public"
+      },
+      {
+        "from": "package.json",
+        "to": "app/package.json"
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "public/favicon.ico"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Development"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
