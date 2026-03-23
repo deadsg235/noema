@@ -12,7 +12,6 @@
  */
 
 import { ChatGroq } from "@langchain/groq"
-import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts"
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages"
 import { NoeState } from "@/lib/noe-engine/types"
 import { PatternCluster } from "@/lib/noe-engine/cognition"

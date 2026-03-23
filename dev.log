@@ -1,0 +1,14 @@
+
+> noema@0.2.0 dev
+> next dev
+
+▲ Next.js 16.2.1 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.23.48.1:3000
+- Environments: .env.local
+✓ Ready in 787ms
+Creating turbopack project {
+  dir: 'c:\\Users\\deads\\OneDrive\\Documents\\AGI\\noema',
+  testMode: true
+}
+

@@ -213,6 +213,9 @@ export default function Home() {
         </motion.div>
       </div>
 
+      {/* ── CA Bar ── */}
+      <CABar accent={accent} />
+
       {/* ── Footer ── */}
       <footer className="border-t border-white/5 px-6 py-4 flex items-center justify-between font-mono text-[11px] text-white/15">
         <span>NOEMA-AGENT © 2025</span>

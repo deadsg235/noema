@@ -23,12 +23,6 @@ function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x))
 }
 
-// Derivative of sigmoid (for weight updates)
-function sigmoidPrime(x: number): number {
-  const s = sigmoid(x)
-  return s * (1 - s)
-}
-
 // Encode a PerceptionEvent into a 5-element input vector
 export function encodeEvent(event: PerceptionEvent): number[] {
   const typeMap: Record<PerceptionType, number[]> = {
