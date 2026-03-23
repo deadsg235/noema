@@ -14,7 +14,7 @@ const BOOT_STATE: NoeUIState = {
   energy: 0,
   networkSignals: { walletActivity: 0, liquidityFlow: 0, collectiveIntent: 0 },
   message: "Initializing N.O.E...",
-  timestamp: Date.now(),
+  timestamp: 0,
   engineState: { stability: 0.5, trust: 0.5, energy: 0.3, volatility: 0.2, growth: 0.5 },
   expression: { text: "", visual: { eyeBrightness: 0.3, energyFlow: "smooth", particleDensity: 10, glitchIntensity: 0 } },
   cluster: "NEUTRAL",
@@ -187,8 +187,8 @@ export default function Home() {
         >
           <div className="px-4 pt-4 pb-2 border-b border-white/5 flex items-center justify-between">
             <span className="font-mono text-xs text-white/30 uppercase tracking-widest">Talk to Noe</span>
-            <span className="font-mono text-[10px] text-white/20">
-              {new Date(state.timestamp).toLocaleTimeString()}
+            <span className="font-mono text-[10px] text-white/20" suppressHydrationWarning>
+              {state.timestamp ? new Date(state.timestamp).toLocaleTimeString() : "--:--:--"}
             </span>
           </div>
           <NoeChat state={state} onStateUpdate={setState} />

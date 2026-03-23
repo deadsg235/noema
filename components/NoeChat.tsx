@@ -17,20 +17,24 @@ interface Props {
 }
 
 export default function NoeChat({ state, onStateUpdate }: Props) {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "noe", text: state.message, cluster: state.cluster },
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
+  const [mounted, setMounted] = useState(false)
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const accent = MOOD_ACCENT[state.mood]
 
+  // Defer initial message to client only — prevents hydration mismatch
+  useEffect(() => {
+    setMessages([{ role: "noe", text: state.message, cluster: state.cluster }])
+    setMounted(true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Build history for LLM context (exclude the initial ambient message)
   const getHistory = useCallback(() => {
     return messages.slice(1).map((m) => ({ role: m.role, text: m.text }))
   }, [messages])
@@ -42,8 +46,6 @@ export default function NoeChat({ state, onStateUpdate }: Props) {
     setInput("")
     setMessages((m) => [...m, { role: "user", text }])
     setStreaming(true)
-
-    // Add empty Noe message that we'll stream into
     setMessages((m) => [...m, { role: "noe", text: "", streaming: true }])
 
     abortRef.current = new AbortController()
@@ -58,15 +60,11 @@ export default function NoeChat({ state, onStateUpdate }: Props) {
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-      // Parse updated engine state from header
       const rawState = res.headers.get("X-Noe-State")
       if (rawState) {
-        try {
-          onStateUpdate(JSON.parse(decodeURIComponent(rawState)))
-        } catch {}
+        try { onStateUpdate(JSON.parse(decodeURIComponent(rawState))) } catch {}
       }
 
-      // Stream tokens into the last message
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       if (!reader) throw new Error("No response body")
@@ -75,41 +73,24 @@ export default function NoeChat({ state, onStateUpdate }: Props) {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        fullText += chunk
+        fullText += decoder.decode(value, { stream: true })
         setMessages((m) => {
           const updated = [...m]
-          updated[updated.length - 1] = {
-            role: "noe",
-            text: fullText,
-            cluster: state.cluster,
-            streaming: true,
-          }
+          updated[updated.length - 1] = { role: "noe", text: fullText, cluster: state.cluster, streaming: true }
           return updated
         })
       }
 
-      // Mark streaming done
       setMessages((m) => {
         const updated = [...m]
-        updated[updated.length - 1] = {
-          role: "noe",
-          text: fullText,
-          cluster: state.cluster,
-          streaming: false,
-        }
+        updated[updated.length - 1] = { role: "noe", text: fullText, cluster: state.cluster, streaming: false }
         return updated
       })
     } catch (err) {
       if ((err as Error).name === "AbortError") return
       setMessages((m) => {
         const updated = [...m]
-        updated[updated.length - 1] = {
-          role: "noe",
-          text: "Signal lost. Try again.",
-          cluster: state.cluster,
-          streaming: false,
-        }
+        updated[updated.length - 1] = { role: "noe", text: "Signal lost. Try again.", cluster: state.cluster, streaming: false }
         return updated
       })
     } finally {
@@ -132,53 +113,65 @@ export default function NoeChat({ state, onStateUpdate }: Props) {
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4 min-h-0">
-        <AnimatePresence initial={false}>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+        {!mounted ? (
+          // Stable SSR skeleton — identical on server and client first paint
+          <div className="flex justify-start">
+            <div
+              className="px-3 py-2 font-mono text-sm text-white/30"
+              style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12 }}
             >
-              {msg.role === "noe" ? (
-                <div
-                  className="max-w-[88%] px-3 py-2 font-mono text-sm leading-relaxed text-white/70"
-                  style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12 }}
-                >
-                  {/* Header */}
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] uppercase tracking-widest" style={{ color: accent }}>
-                      Noe
-                    </span>
-                    {msg.cluster && (
-                      <span className="text-[9px] text-white/20 uppercase tracking-widest">
-                        [{msg.cluster.replace("_", " ")}]
+              <span className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: accent }}>
+                Noe
+              </span>
+              Initializing N.O.E...
+            </div>
+          </div>
+        ) : (
+          <AnimatePresence initial={false}>
+            {messages.map((msg, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                {msg.role === "noe" ? (
+                  <div
+                    className="max-w-[88%] px-3 py-2 font-mono text-sm leading-relaxed text-white/70"
+                    style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12 }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] uppercase tracking-widest" style={{ color: accent }}>
+                        Noe
                       </span>
-                    )}
+                      {msg.cluster && (
+                        <span className="text-[9px] text-white/20 uppercase tracking-widest">
+                          [{msg.cluster.replace("_", " ")}]
+                        </span>
+                      )}
+                    </div>
+                    <span className="whitespace-pre-wrap break-words">
+                      {msg.text}
+                      {msg.streaming && (
+                        <motion.span
+                          className="inline-block w-[2px] h-[14px] ml-[2px] align-middle"
+                          style={{ background: accent }}
+                          animate={{ opacity: [1, 0, 1] }}
+                          transition={{ duration: 0.6, repeat: Infinity }}
+                        />
+                      )}
+                    </span>
                   </div>
-
-                  {/* Text with streaming cursor */}
-                  <span className="whitespace-pre-wrap break-words">
+                ) : (
+                  <div className="max-w-[88%] px-3 py-2 rounded-xl bg-white/[0.05] font-mono text-sm text-white/70 border border-white/[0.06] break-words">
                     {msg.text}
-                    {msg.streaming && (
-                      <motion.span
-                        className="inline-block w-[2px] h-[14px] ml-[2px] align-middle"
-                        style={{ background: accent }}
-                        animate={{ opacity: [1, 0, 1] }}
-                        transition={{ duration: 0.6, repeat: Infinity }}
-                      />
-                    )}
-                  </span>
-                </div>
-              ) : (
-                <div className="max-w-[88%] px-3 py-2 rounded-xl bg-white/[0.05] font-mono text-sm text-white/70 border border-white/[0.06] break-words">
-                  {msg.text}
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        )}
         <div ref={bottomRef} />
       </div>
 
