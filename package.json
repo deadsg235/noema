@@ -16,7 +16,10 @@
     "app:dist:linux": "next build && electron-builder --linux"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.35",
+    "@langchain/groq": "^1.1.5",
     "framer-motion": "^12.38.0",
+    "langchain": "^1.2.36",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -64,15 +67,24 @@
       }
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "public/favicon.ico"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.developer-tools"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Development"
     },
     "nsis": {

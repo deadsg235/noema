@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { NoeEngine, NoePersonality, PerceptionEvent } from "@/lib/noe-engine"
 import { computeMoodFromState, NoeUIState } from "@/lib/noe-state"
 
-// Singleton engine — persists across requests in the same server process
-// In production: serialize/deserialize from Redis or DB
-let engine: NoeEngine | null = null
+// Global singleton — shared with /api/noe/chat
+declare global {
+  // eslint-disable-next-line no-var
+  var __noeEngine: NoeEngine | undefined
+}
 
 function getEngine(): NoeEngine {
-  if (!engine) engine = new NoeEngine()
-  return engine
+  if (!global.__noeEngine) global.__noeEngine = new NoeEngine()
+  return global.__noeEngine
 }
 
 // Simulate realistic on-chain signal ingestion
