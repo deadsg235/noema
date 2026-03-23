@@ -7,27 +7,21 @@ import NoeChat from "@/components/NoeChat"
 import NetworkPulse from "@/components/NetworkPulse"
 import NoeStateMatrix from "@/components/NoeStateMatrix"
 import NoeImage from "@/components/NoeImage"
-import { MOOD_COLORS, MOOD_ACCENT, type NoeUIState } from "@/lib/noe-state"
-
-const CA = "82KHJf2YVWhxx9F6cgipJRZ8eg6rD7oSeFMmN3mWpump"
+import WalletButton from "@/components/WalletButton"
+import WalletPanel from "@/components/WalletPanel"
+import { MOOD_COLORS, MOOD_ACCENT, NOEMA_CA, type NoeUIState } from "@/lib/noe-state"
 
 function CABar({ accent }: { accent: string }) {
   const [copied, setCopied] = useState(false)
-
   function copy() {
-    navigator.clipboard.writeText(CA)
+    navigator.clipboard.writeText(NOEMA_CA)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-
   return (
     <div className="border-t border-white/5 px-4 py-3 flex items-center justify-center gap-3">
-      <span className="font-mono text-[10px] text-white/25 uppercase tracking-widest hidden sm:block">
-        CA
-      </span>
-      <span className="font-mono text-xs text-white/40 tracking-wider break-all text-center">
-        {CA}
-      </span>
+      <span className="font-mono text-[10px] text-white/25 uppercase tracking-widest hidden sm:block">CA</span>
+      <span className="font-mono text-xs text-white/40 tracking-wider break-all text-center">{NOEMA_CA}</span>
       <button
         onClick={copy}
         className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-lg border font-mono text-[10px] uppercase tracking-widest transition-all"
@@ -39,13 +33,7 @@ function CABar({ accent }: { accent: string }) {
       >
         {copied ? (
           <>
-            <motion.span
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className="text-[10px]"
-            >
-              ✓
-            </motion.span>
+            <motion.span initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="text-[10px]">✓</motion.span>
             Copied
           </>
         ) : (
@@ -79,21 +67,25 @@ export default function Home() {
   const [state, setState] = useState<NoeUIState>(BOOT_STATE)
   const [booted, setBooted] = useState(false)
   const [milestone, setMilestone] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"signals" | "image">("signals")
+  const [activeTab, setActiveTab] = useState<"signals" | "wallet" | "image">("signals")
   const milestoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleStateUpdate = useCallback((data: NoeUIState) => {
+    setState(data)
+    if (data.milestoneTriggered) {
+      setMilestone(data.milestoneTriggered)
+      if (milestoneTimer.current) clearTimeout(milestoneTimer.current)
+      milestoneTimer.current = setTimeout(() => setMilestone(null), 4000)
+    }
+  }, [])
 
   const fetchState = useCallback(async () => {
     try {
       const res = await fetch("/api/noe")
       const data: NoeUIState = await res.json()
-      setState(data)
-      if (data.milestoneTriggered) {
-        setMilestone(data.milestoneTriggered)
-        if (milestoneTimer.current) clearTimeout(milestoneTimer.current)
-        milestoneTimer.current = setTimeout(() => setMilestone(null), 4000)
-      }
+      handleStateUpdate(data)
     } catch {}
-  }, [])
+  }, [handleStateUpdate])
 
   useEffect(() => {
     fetchState().then(() => setBooted(true))
@@ -128,15 +120,17 @@ export default function Home() {
             Neural Operational Engine
           </span>
         </div>
-        <div className="flex items-center gap-4 font-mono text-xs">
-          <span className="text-white/20 hidden sm:block">v0.2.0</span>
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-xs text-white/20 hidden sm:block">v0.2.0</span>
           <motion.span
+            className="font-mono text-xs"
             style={{ color: accent }}
             animate={{ opacity: [1, 0.5, 1] }}
             transition={{ duration: 3, repeat: Infinity }}
           >
             ON-CHAIN
           </motion.span>
+          <WalletButton mood={state.mood} />
         </div>
       </header>
 
@@ -183,23 +177,23 @@ export default function Home() {
         </motion.p>
       </section>
 
-      {/* ── Main grid: 2-col on lg, 4-col on xl ── */}
+      {/* ── Main grid ── */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-4 md:px-6 pb-10 max-w-[1400px] mx-auto w-full">
 
-        {/* ── Left panel: signals + state matrix (tabs on mobile) ── */}
+        {/* ── Left panel ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: booted ? 1 : 0, x: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
           className="flex flex-col gap-3 xl:col-span-1"
         >
-          {/* Mobile tab switcher */}
+          {/* Mobile tabs */}
           <div className="flex lg:hidden gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/5">
-            {(["signals", "image"] as const).map((tab) => (
+            {(["signals", "wallet", "image"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className="flex-1 py-1.5 rounded font-mono text-xs uppercase tracking-widest transition-all"
+                className="flex-1 py-1.5 rounded font-mono text-[10px] uppercase tracking-widest transition-all"
                 style={activeTab === tab
                   ? { background: `${accent}22`, color: accent }
                   : { color: "rgba(255,255,255,0.3)" }
@@ -213,6 +207,11 @@ export default function Home() {
           <div className={activeTab === "signals" ? "flex flex-col gap-3" : "hidden lg:flex flex-col gap-3"}>
             <NetworkPulse state={state} />
             <NoeStateMatrix state={state} />
+          </div>
+
+          {/* Wallet panel — visible on desktop always, mobile via tab */}
+          <div className={activeTab === "wallet" ? "flex flex-col gap-3" : "hidden lg:flex flex-col gap-3"}>
+            <WalletPanel state={state} onStateUpdate={handleStateUpdate} />
           </div>
         </motion.div>
 
@@ -247,7 +246,7 @@ export default function Home() {
           <NoeChat state={state} onStateUpdate={setState} />
         </motion.div>
 
-        {/* ── Far right: Image panel (xl only, or mobile tab) ── */}
+        {/* ── Far right: Image panel ── */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: booted ? 1 : 0, x: 0 }}

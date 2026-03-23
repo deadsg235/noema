@@ -2,6 +2,8 @@ import { NoeState as EngineState, NoeExpression } from "./noe-engine"
 
 export type NoeMood = "dormant" | "aware" | "active" | "surging" | "transcendent"
 
+export const NOEMA_CA = "82KHJf2YVWhxx9F6cgipJRZ8eg6rD7oSeFMmN3mWpump"
+
 // The full UI-facing state — everything the frontend needs
 export interface NoeUIState {
   mood: NoeMood

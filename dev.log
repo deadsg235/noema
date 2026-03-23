@@ -12,3 +12,4 @@ Creating turbopack project {
   testMode: true
 }
 
+  Reload env: .env.local
