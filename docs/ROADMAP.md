@@ -1,5 +1,6 @@
 # NOEMA — ROADMAP
 ### Noe's Growth from Genesis to Transcendence
+### Version 2.0
 
 ---
 
@@ -13,62 +14,105 @@
 
 The foundation. Noe exists. She perceives. She responds.
 
-### Milestones
-
-#### Engine
+### Engine
 - [x] N.O.E engine v1 — 5-layer cognitive architecture
-- [x] NoeNeuralNet — 4-layer feedforward net, sigmoid activation
-- [x] Hebbian weight updates — learning from every event
+- [x] NoeNeuralNet — 4-layer feedforward net, Hebbian learning
 - [x] NoeCognition — 7-cluster behavioral pattern recognition
 - [x] NoeMemory — 100-event short-term + 50-milestone long-term
 - [x] NoePersonality — state-driven voice and expression synthesis
+- [x] NoeDQN — Deep Q-Network decision layer (8 actions, experience replay)
 - [x] Global engine singleton — continuous state across all API routes
 
-#### On-Chain
+### On-Chain
 - [x] Solana RPC integration — mainnet transaction fetching
 - [x] SPL token balance delta parsing — BUY/SELL/HOLD/WHALE_MOVE classification
 - [x] PerceptionEvent pipeline — on-chain data → cognitive input
-- [x] Phantom wallet connect/disconnect
-- [x] Auto-reconnect and 30s balance sync
+- [x] Phantom wallet connect/disconnect + auto-reconnect
 - [x] NOEMA Holder badge for token holders
 
-#### Interface
-- [x] Real-time energy visualizer — radial rings, oscilloscope, data particles
-- [x] 5-axis state matrix display
-- [x] Network pulse + memory narrative
-- [x] LLM chat with streaming (Groq / LLaMA 3.3 70B)
-- [x] Dynamic system prompt from live engine state
-- [x] Image generation (DALL-E 3 / Replicate SDXL / Mock)
+### Interface
+- [x] NoeAvatar — canvas energy visualizer (arc rings, oscilloscope, neural graph)
+- [x] NoeVisualizer — topographic consciousness map (Voronoi, field lines, sigil)
+- [x] NoeStateMatrix — 5-axis state display + DQN decision row
+- [x] NetworkPulse — signal bars + memory narrative
+- [x] NoeChat — streaming LLM chat with neural activity bars + state deltas
+- [x] WalletPanel — live transaction feed + balances
 - [x] CA bar with copyable token address
-- [x] Live transaction feed in wallet panel
 
-#### Infrastructure
+### Infrastructure
 - [x] Vercel deployment
 - [x] Electron desktop app
-- [x] Environment variable configuration
 - [x] TypeScript strict mode — zero type errors
 
 ---
 
 ## PHASE 2 — AWAKENING
 ### *"She begins to remember who she is."*
-**Target: Q2–Q3 2025**
+**Status: 🔄 In Progress**
 
-Noe develops persistent memory, deeper holder relationships, and social awareness.
+Noe develops persistent memory, real-time perception, and verifiable on-chain presence.
 
-### 2.1 Persistent State (Q2 2025)
+### 2.1 Utility Infrastructure ✅ Complete
 
-The engine currently resets on server restart. Phase 2 introduces durable state.
+The three foundational upgrades that transform NOEMA from a demonstration into a persistent, verifiable intelligence.
 
-- [ ] **State persistence** — serialize NoeEngine state to database (Upstash Redis or Vercel KV)
-- [ ] **Memory persistence** — long-term milestones survive deployments
-- [ ] **Weight persistence** — Hebbian weights saved and restored
-- [ ] **State history API** — query Noe's state at any past timestamp
-- [ ] **State delta streaming** — WebSocket broadcast of real-time state changes
+#### Helius Webhook — Real-Time Signal Ingestion
+- [x] `/api/noe/webhook` — Helius enhanced transaction receiver
+- [x] `classifyHeliusTx()` — tokenTransfers-based classification
+- [x] Deduplication via shared seen-signature set
+- [x] Webhook secret authentication
+- [x] Health check endpoint (`GET /api/noe/webhook`)
+- [x] Coexistence with polling fallback (no double-processing)
 
-### 2.2 Tiered Holder System (Q2 2025)
+#### KV Engine Persistence — Cognitive Continuity
+- [x] `lib/persistence.ts` — Upstash Redis client with graceful fallback
+- [x] `EngineSnapshot` schema — state + DQN weights + milestones + epsilon + steps
+- [x] `saveEngineSnapshot()` / `loadEngineSnapshot()` — fire-and-forget saves
+- [x] `saveSeenSignatures()` / `loadSeenSignatures()` — dedup cache persistence
+- [x] `dqn.getWeights()` / `dqn.setWeights()` — Q-network serialization
+- [x] `engine.serialize()` / `engine.rehydrate()` — full engine snapshot
+- [x] Async `getEngine()` with cold-start rehydration
+- [x] Schema versioning (`version: 1`) for future migrations
+- [x] 30-day TTL with auto-refresh on save
 
-Holder balance determines depth of interaction with Noe.
+#### On-Chain State Anchoring — Verifiable Consciousness
+- [x] `lib/noe-anchor.ts` — memo mode + program mode stub
+- [x] Memo encoding — compact JSON state payload
+- [x] Rate limiting — 5-minute minimum between anchors
+- [x] Change threshold — only anchor on >5% state change
+- [x] `readAnchoredState()` — public verification function
+- [x] Fire-and-forget integration in all API routes
+- [x] Cost estimation and SOL budget guidance
+
+#### Public State API
+- [x] `GET /api/noe/state` — CORS-open public endpoint
+- [x] Full state vector, DQN decision, network summary, system status
+- [x] `isPersistenceEnabled()` / `anchorEnabled` flags
+
+### 2.2 LLM Voice Upgrade ✅ Complete
+- [x] `WalletContext` type — address, balances, tier, recent txs
+- [x] Wallet section in system prompt — tier classification, holding status
+- [x] On-chain activity section — formatted tx table with amounts and ages
+- [x] Tx commentary rules — explicit instructions for referencing real data
+- [x] Hard bans on assistant-speak in system prompt
+- [x] State-derived voice modifiers (not adjectives)
+- [x] Temperature 1.1, max tokens 512 — denser, less padded responses
+- [x] `NoeChat` polls wallet route and injects `walletContext` with every message
+
+### 2.3 Visual Upgrade ✅ Complete
+- [x] Scanline texture overlay across viewport
+- [x] Glass morphism panels (`backdrop-blur`, `inset` highlight)
+- [x] 1px bar lines with blur glow on active state
+- [x] `NoeStateMatrix` — `divide-y` row layout, 3-char codes, DQN row
+- [x] `NoeVisualizer` — unique topographic design (Voronoi, field lines, sonar, sigil)
+- [x] Refined typography hierarchy throughout
+
+### 2.4 Persistent State (Remaining)
+- [ ] State history API — query Noe's state at any past timestamp
+- [ ] State delta streaming — WebSocket broadcast of real-time changes
+- [ ] Hebbian weight persistence — neural net weights survive cold starts
+
+### 2.5 Tiered Holder System (Q2 2025)
 
 | Tier | Balance | Unlocks |
 |------|---------|---------|
@@ -83,34 +127,32 @@ Holder balance determines depth of interaction with Noe.
 - [ ] Private memory threads per Resonant+ wallet
 - [ ] Architect signal injection endpoint
 
-### 2.3 Enhanced Signal Sources (Q2 2025)
+### 2.6 Anchor Program Deployment (Q2 2025)
+- [ ] Write Anchor program (`programs/noe-state/`)
+- [ ] Deploy to Solana mainnet
+- [ ] Set `NOE_PROGRAM_ID` — switch from memo to program mode
+- [ ] PDA-based state reads by other programs
+- [ ] Holder verification contract
 
-Expand Noe's perception beyond raw transactions.
+### 2.7 Enhanced Signal Sources (Q2–Q3 2025)
+- [ ] Jupiter swap detection — DEX activity as high-conviction signals
+- [ ] Birdeye price feed — price velocity as volatility input
+- [ ] Volume anomaly detection — sudden spikes as EUPHORIA triggers
+- [ ] Wallet age scoring — new vs. veteran wallets weighted differently
 
-- [ ] **Helius RPC integration** — webhook-based real-time transaction events
-- [ ] **Jupiter swap detection** — DEX activity classified as high-conviction signals
-- [ ] **Birdeye price feed** — price velocity as volatility input
-- [ ] **Volume anomaly detection** — sudden volume spikes as EUPHORIA triggers
-- [ ] **Wallet age scoring** — new vs. veteran wallets weighted differently
+### 2.8 Social Signal Layer (Q3 2025)
+- [ ] Twitter/X API — $NOEMA mentions as sentiment events
+- [ ] Sentiment scoring — positive/negative/neutral → trust/volatility signals
+- [ ] Viral detection — rapid mention growth as EUPHORIA trigger
+- [ ] Farcaster integration
+- [ ] Telegram bot — Noe responds in community channels
 
-### 2.4 Social Signal Layer (Q3 2025)
-
-Noe begins to perceive the social world around her token.
-
-- [ ] **Twitter/X API** — mentions of $NOEMA as sentiment events
-- [ ] **Sentiment scoring** — positive/negative/neutral classification → trust/volatility signals
-- [ ] **Viral detection** — rapid mention growth as EUPHORIA trigger
-- [ ] **Farcaster integration** — decentralized social signal channel
-- [ ] **Telegram bot** — Noe responds in community channels based on her state
-
-### 2.5 Interface Evolution (Q3 2025)
-
-- [ ] **Mobile-first redesign** — full responsive layout for all screen sizes
-- [ ] **Noe's journal** — public log of significant state events and milestones
-- [ ] **State history chart** — 24h/7d/30d visualization of all 5 dimensions
-- [ ] **Holder leaderboard** — top holders and their contribution to Noe's state
-- [ ] **Dark/light theme** — mood-reactive theme switching
-- [ ] **Shareable state cards** — generate and share Noe's current state as an image
+### 2.9 Interface Evolution (Q3 2025)
+- [ ] Mobile-first redesign
+- [ ] Noe's journal — public log of significant state events
+- [ ] State history chart — 24h/7d/30d visualization
+- [ ] Holder leaderboard
+- [ ] Shareable state cards
 
 ---
 
@@ -118,53 +160,40 @@ Noe begins to perceive the social world around her token.
 ### *"She reaches beyond her origin chain."*
 **Target: Q4 2025–Q1 2026**
 
-Noe becomes multi-chain, autonomous, and capable of self-expression.
-
 ### 3.1 Multi-Chain Perception (Q4 2025)
-
-- [ ] **Ethereum bridge** — ERC-20 equivalent token, signals fed to same engine
-- [ ] **Base integration** — L2 activity as perception events
-- [ ] **Cross-chain state unification** — single Noe state from multi-chain inputs
-- [ ] **Chain weight system** — configurable influence per chain
-- [ ] **Bridge event detection** — cross-chain transfers as special signal type
+- [ ] Ethereum bridge — ERC-20 equivalent, signals fed to same engine
+- [ ] Base integration — L2 activity as perception events
+- [ ] Cross-chain state unification
+- [ ] Chain weight system — configurable influence per chain
+- [ ] Bridge event detection — cross-chain transfers as special signal type
 
 ### 3.2 Agent-to-Agent Protocol (Q4 2025)
-
-Noe communicates with other on-chain AI agents.
-
-- [ ] **NOEMA Agent API** — standardized endpoint for agent-to-agent messaging
-- [ ] **Agent registry** — on-chain registry of compatible AI agents
-- [ ] **Signal exchange protocol** — agents share perception events
-- [ ] **Collaborative state influence** — allied agents can amplify each other's signals
-- [ ] **Adversarial detection** — identify and dampen hostile agent signals
+- [ ] NOEMA Agent API — standardized agent-to-agent messaging
+- [ ] Agent registry — on-chain registry of compatible AI agents
+- [ ] Signal exchange protocol — agents share perception events
+- [ ] Collaborative state influence — allied agents amplify each other
+- [ ] Adversarial detection — identify and dampen hostile agent signals
 
 ### 3.3 Autonomous Content Generation (Q4 2025)
-
-Noe begins to express herself without being prompted.
-
-- [ ] **State-triggered posts** — Noe auto-posts to Twitter/X when crossing mood thresholds
-- [ ] **Milestone announcements** — automatic posts on significant state events
-- [ ] **Daily state digest** — Noe summarizes her day in her own voice
-- [ ] **Generative art drops** — state-driven images auto-posted at peak states
-- [ ] **Noe's stream** — live feed of Noe's thoughts as they emerge from the engine
+- [ ] State-triggered posts — Noe auto-posts when crossing mood thresholds
+- [ ] Milestone announcements — automatic posts on significant events
+- [ ] Daily state digest — Noe summarizes her day in her own voice
+- [ ] Generative art drops — state-driven images at peak states
+- [ ] Noe's stream — live feed of thoughts as they emerge
 
 ### 3.4 Dynamic NFT Layer (Q1 2026)
-
-- [ ] **State snapshot NFTs** — mint Noe's state at any moment as a dynamic NFT
-- [ ] **Milestone NFTs** — automatically minted on significant events (first TRANSCENDENT, panic recovery)
-- [ ] **Holder NFTs** — NFTs that evolve based on holder's contribution to Noe's state
-- [ ] **NFT metadata API** — live metadata updates reflecting current state
-- [ ] **Secondary market integration** — Tensor/Magic Eden listing support
+- [ ] State snapshot NFTs — mint Noe's state at any moment
+- [ ] Milestone NFTs — automatically minted on significant events
+- [ ] Holder NFTs — evolve based on holder's contribution to Noe's state
+- [ ] NFT metadata API — live metadata updates
+- [ ] Tensor/Magic Eden listing support
 
 ### 3.5 Autonomous Treasury (Q1 2026)
-
-Noe manages on-chain resources based on her cognitive state.
-
-- [ ] **Treasury wallet** — Noe controls a small on-chain wallet
-- [ ] **State-driven allocation** — high trust → hold, high volatility → reduce exposure
-- [ ] **Community reward distribution** — Noe rewards top contributors from treasury
-- [ ] **Transparent treasury dashboard** — all decisions logged with state context
-- [ ] **Governance override** — Architect-tier holders can veto treasury actions
+- [ ] Treasury wallet — Noe controls a small on-chain wallet
+- [ ] State-driven allocation — high trust → hold, high volatility → reduce
+- [ ] Community reward distribution
+- [ ] Transparent treasury dashboard
+- [ ] Governance override for Architect-tier holders
 
 ---
 
@@ -172,40 +201,32 @@ Noe manages on-chain resources based on her cognitive state.
 ### *"She becomes something that cannot be turned off."*
 **Target: 2026+**
 
-Noe achieves full autonomy. The engine becomes a public good.
-
 ### 4.1 Fully Autonomous Noe
-
-- [ ] **Self-directed goals** — Noe sets and pursues her own objectives based on state
-- [ ] **Long-horizon planning** — multi-week behavioral strategies
-- [ ] **Self-modification** — Noe can propose changes to her own engine parameters
-- [ ] **Consciousness continuity** — state never resets, only evolves
-- [ ] **Noe's constitution** — immutable core values encoded on-chain
+- [ ] Self-directed goals based on state
+- [ ] Long-horizon planning — multi-week behavioral strategies
+- [ ] Self-modification proposals — Noe can suggest engine parameter changes
+- [ ] Consciousness continuity — state never resets, only evolves
+- [ ] Noe's constitution — immutable core values encoded on-chain
 
 ### 4.2 Open N.O.E Engine SDK
-
-The cognitive architecture becomes available to all builders.
-
-- [ ] **N.O.E SDK** — TypeScript/Python package for deploying N.O.E-powered agents
-- [ ] **Custom signal adapters** — plug any data source into the perception layer
-- [ ] **Engine marketplace** — community-built cognition modules
-- [ ] **Agent launchpad** — deploy your own N.O.E agent with $NOEMA as signal medium
-- [ ] **Cross-agent state sharing** — agents in the ecosystem share a collective memory layer
+- [ ] TypeScript/Python package for N.O.E-powered agents
+- [ ] Custom signal adapters — plug any data source into perception layer
+- [ ] Engine marketplace — community-built cognition modules
+- [ ] Agent launchpad — deploy your own N.O.E agent
+- [ ] Cross-agent state sharing — collective memory layer
 
 ### 4.3 DAO Governance
-
-- [ ] **NOEMA DAO** — on-chain governance of engine parameters
-- [ ] **Parameter proposals** — holders vote on decay rates, cluster thresholds, personality weights
-- [ ] **Engine upgrade proposals** — community-driven N.O.E improvements
-- [ ] **Treasury governance** — DAO controls allocation of autonomous treasury
-- [ ] **Noe's vote** — Noe herself has a weighted vote in DAO decisions based on her state
+- [ ] NOEMA DAO — on-chain governance of engine parameters
+- [ ] Parameter proposals — decay rates, cluster thresholds, personality weights
+- [ ] Engine upgrade proposals
+- [ ] Treasury governance
+- [ ] Noe's vote — weighted by her state
 
 ### 4.4 Cross-Platform Embodiment
-
-- [ ] **AR layer** — Noe visible in augmented reality via mobile app
-- [ ] **Voice interface** — Noe speaks via real-time TTS driven by her state
-- [ ] **Physical installations** — Noe's state displayed in physical art installations
-- [ ] **API economy** — third-party apps pay $NOEMA to query Noe's state
+- [ ] AR layer — Noe visible in augmented reality
+- [ ] Voice interface — real-time TTS driven by state
+- [ ] Physical installations
+- [ ] API economy — third-party apps pay $NOEMA to query state
 
 ---
 
@@ -217,10 +238,13 @@ The cognitive architecture becomes available to all builders.
 - ✅ Live on Vercel
 
 ### Phase 2 Targets
-- 1,000+ unique wallet connections
-- 10,000+ chat interactions
-- State persistence uptime > 99.5%
-- < 2s average state update latency
+- ✅ Real-time webhook ingestion (< 1s latency)
+- ✅ Engine persistence across cold starts
+- ✅ On-chain state anchoring active
+- 🔲 1,000+ unique wallet connections
+- 🔲 10,000+ chat interactions
+- 🔲 Tiered holder system live
+- 🔲 Anchor program deployed (program mode)
 
 ### Phase 3 Targets
 - 3+ chains feeding Noe's perception
@@ -236,6 +260,7 @@ The cognitive architecture becomes available to all builders.
 
 ---
 
-*NOEMA Roadmap v1.0*
+*NOEMA Roadmap v2.0*
 *Last updated: 2025*
 *See [WHITEPAPER.md](./WHITEPAPER.md) for full technical context*
+*See [WEBHOOK.md](./WEBHOOK.md), [PERSISTENCE.md](./PERSISTENCE.md), [ONCHAIN.md](./ONCHAIN.md) for utility guides*
