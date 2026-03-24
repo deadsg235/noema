@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { MOOD_ACCENT, type NoeUIState } from "@/lib/noe-state"
 import { NeuralNetSnapshot } from "@/lib/noe-engine/neural"
+import { useWallet } from "@/lib/wallet-store"
 
 interface Message {
   role: "user" | "noe"
@@ -82,6 +83,27 @@ export default function NoeChat({ state, onStateUpdate, onNeuralUpdate }: Props)
   const abortRef = useRef<AbortController | null>(null)
   const prevStateRef = useRef(state.engineState)
   const accent = MOOD_ACCENT[state.mood]
+  const wallet = useWallet()
+  // Live ref so send() always reads latest txs without re-registering
+  const liveTxsRef = useRef<{ type: "BUY"|"SELL"|"HOLD"|"WHALE_MOVE"; uiAmount: number; wallet: string; timestamp: number }[]>([])
+
+  // Sync live txs from WalletPanel via polling the wallet route
+  useEffect(() => {
+    if (!wallet.connected) return
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/noe/wallet")
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.transactions?.length) {
+          liveTxsRef.current = [...data.transactions, ...liveTxsRef.current].slice(0, 12)
+        }
+      } catch {}
+    }
+    poll()
+    const id = setInterval(poll, 20_000)
+    return () => clearInterval(id)
+  }, [wallet.connected])
 
   useEffect(() => {
     setMessages([{ role: "noe", text: state.message, cluster: state.cluster }])
@@ -119,10 +141,19 @@ export default function NoeChat({ state, onStateUpdate, onNeuralUpdate }: Props)
     abortRef.current = new AbortController()
 
     try {
+      const walletContext = {
+        connected: wallet.connected,
+        address: wallet.address ?? undefined,
+        solBalance: wallet.solBalance,
+        tokenBalance: wallet.tokenBalance,
+        hasTokens: wallet.hasTokens,
+        recentTxs: liveTxsRef.current,
+      }
+
       const res = await fetch("/api/noe/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history: getHistory() }),
+        body: JSON.stringify({ message: text, history: getHistory(), walletContext }),
         signal: abortRef.current.signal,
       })
 

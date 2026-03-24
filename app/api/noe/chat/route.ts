@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server"
 import { NoeEngine, NoePersonality, PerceptionEvent } from "@/lib/noe-engine"
 import { computeMoodFromState, NoeUIState } from "@/lib/noe-state"
-import { streamNoeResponse, ChatMessage } from "@/lib/noe-llm"
+import { streamNoeResponse, ChatMessage, WalletContext } from "@/lib/noe-llm"
 import { PatternCluster } from "@/lib/noe-engine/cognition"
 
-// Share the same engine singleton as the main route
 declare global {
   // eslint-disable-next-line no-var
   var __noeEngine: NoeEngine | undefined
@@ -37,9 +36,10 @@ function generateSignalBatch(count = 3): PerceptionEvent[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, history = [] } = await req.json() as {
+    const { message, history = [], walletContext } = await req.json() as {
       message: string
       history: ChatMessage[]
+      walletContext?: WalletContext
     }
 
     const eng = getEngine()
@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
       history,
       userInput: message,
       dqnDecision: eng.getDQNDecision(),
+      walletContext,
     })
 
     const neuralSnapshot = lastOutput.neuralSnapshot
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
       },
     })
     return new Response(errStream, {
-      status: 200, // keep 200 so the client reads the stream
+      status: 200,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     })
   }
