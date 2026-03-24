@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { NoeEngine, NoePersonality, PerceptionEvent } from "@/lib/noe-engine"
 import { computeMoodFromState, isInFlowState, NoeUIState } from "@/lib/noe-state"
-import { loadEngineSnapshot, saveEngineSnapshot, loadSeenSignatures } from "@/lib/persistence"
+import { loadEngineSnapshot, saveEngineSnapshot, loadSeenSignatures, appendStateHistory } from "@/lib/persistence"
 import { anchorNoeState } from "@/lib/noe-anchor"
 
 declare global {
@@ -104,7 +104,10 @@ export async function GET() {
 
   // Persist engine state (fire-and-forget, every ~7s poll)
   const snap = eng.serialize()
-  saveEngineSnapshot({ ...snap, version: 1, savedAt: Date.now() }).catch(() => {})
+  const uiMood = uiState.mood
+  const uiCluster = uiState.cluster
+  saveEngineSnapshot({ ...snap, version: 2, savedAt: Date.now() }).catch(() => {})
+  appendStateHistory({ state: eng.getState(), mood: uiMood, cluster: uiCluster, savedAt: Date.now() }).catch(() => {})
 
   // Anchor on-chain (rate-limited internally to every 5 min)
   anchorNoeState(eng.getState()).catch(() => {})

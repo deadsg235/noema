@@ -30,14 +30,15 @@ function getRedis(): Redis | null {
 // ── Serializable engine snapshot ─────────────────────────────────────────────
 
 export interface EngineSnapshot {
-  version:    number          // schema version for migration
-  state:      NoeState
-  longTerm:   MemoryEvent[]   // milestone history
+  version:          number          // schema version for migration
+  state:            NoeState
+  longTerm:         MemoryEvent[]   // milestone history
   shortTermSummary: ActivitySummary
-  dqnWeights: DQNWeightSnapshot
-  epsilon:    number
-  steps:      number
-  savedAt:    number
+  dqnWeights:       DQNWeightSnapshot
+  hebbianWeights?:  HebbianWeightSnapshot
+  epsilon:          number
+  steps:            number
+  savedAt:          number
 }
 
 export interface DQNWeightSnapshot {
@@ -47,6 +48,15 @@ export interface DQNWeightSnapshot {
   l2b: number[]
   l3w: number[][]
   l3b: number[]
+}
+
+export interface HebbianWeightSnapshot {
+  wAB: number[][]
+  wBC: number[][]
+  wCD: number[][]
+  bA:  number[]
+  bB:  number[]
+  bC:  number[]
 }
 
 const KEY_ENGINE   = "noe:engine:v1"
@@ -74,7 +84,7 @@ export async function loadEngineSnapshot(): Promise<EngineSnapshot | null> {
     const raw = await kv.get<string>(KEY_ENGINE)
     if (!raw) return null
     const snap = typeof raw === "string" ? JSON.parse(raw) : raw
-    if (snap?.version !== 1) return null  // schema mismatch — start fresh
+    if (!snap?.version || snap.version < 1) return null  // schema mismatch — start fresh
     return snap as EngineSnapshot
   } catch (err) {
     console.warn("[persistence] load failed:", err)
@@ -111,4 +121,36 @@ export async function saveSeenSignatures(sigs: Set<string>): Promise<void> {
 
 export function isPersistenceEnabled(): boolean {
   return !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+}
+
+// ── State history (rolling 1000-entry log) ────────────────────────────────────
+
+const KEY_HISTORY = "noe:history:v1"
+const HISTORY_MAX = 1000
+
+export interface StateHistoryEntry {
+  state:   NoeState
+  mood:    string
+  cluster: string
+  savedAt: number
+}
+
+export async function appendStateHistory(entry: StateHistoryEntry): Promise<void> {
+  const kv = getRedis()
+  if (!kv) return
+  try {
+    await kv.lpush(KEY_HISTORY, JSON.stringify(entry))
+    await kv.ltrim(KEY_HISTORY, 0, HISTORY_MAX - 1)
+  } catch {}
+}
+
+export async function loadStateHistory(limit = 100): Promise<StateHistoryEntry[]> {
+  const kv = getRedis()
+  if (!kv) return []
+  try {
+    const raw = await kv.lrange(KEY_HISTORY, 0, limit - 1)
+    return raw.map(r => (typeof r === "string" ? JSON.parse(r) : r) as StateHistoryEntry)
+  } catch {
+    return []
+  }
 }

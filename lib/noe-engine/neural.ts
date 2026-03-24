@@ -153,4 +153,24 @@ export class NoeNeuralNet {
       wCD: this.wCD.map(r => [...r]),
     }
   }
+
+  getHebbianWeights() {
+    return {
+      wAB: this.wAB.map(r => [...r]),
+      wBC: this.wBC.map(r => [...r]),
+      wCD: this.wCD.map(r => [...r]),
+      bA:  [...this.bA],
+      bB:  [...this.bB],
+      bC:  [...this.bC],
+    }
+  }
+
+  setHebbianWeights(w: ReturnType<NoeNeuralNet["getHebbianWeights"]>) {
+    this.wAB = w.wAB.map(r => [...r])
+    this.wBC = w.wBC.map(r => [...r])
+    this.wCD = w.wCD.map(r => [...r])
+    this.bA  = [...w.bA]
+    this.bB  = [...w.bB]
+    this.bC  = [...w.bC]
+  }
 }

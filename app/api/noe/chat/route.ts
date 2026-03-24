@@ -3,6 +3,7 @@ import { NoeEngine, NoePersonality, PerceptionEvent } from "@/lib/noe-engine"
 import { computeMoodFromState, isInFlowState, NoeUIState } from "@/lib/noe-state"
 import { streamNoeResponse, ChatMessage, WalletContext } from "@/lib/noe-llm"
 import { PatternCluster } from "@/lib/noe-engine/cognition"
+import { getCaps } from "@/lib/noe-tiers"
 
 declare global {
   // eslint-disable-next-line no-var
@@ -43,8 +44,14 @@ export async function POST(req: NextRequest) {
     }
 
     const eng = getEngine()
+    const caps = getCaps(walletContext?.tokenBalance ?? 0)
+    const trimmedHistory = history.slice(-caps.maxChatHistory)
 
-    const events = generateSignalBatch(4)
+    const events = generateSignalBatch(4).map(e =>
+      caps.prioritySignal !== 1.0
+        ? { ...e, magnitude: Math.min(10, e.magnitude * caps.prioritySignal), walletScore: Math.min(100, e.walletScore * caps.prioritySignal) }
+        : e
+    )
     let lastOutput = eng.tick()
     for (const event of events) {
       lastOutput = eng.processEvent(event)
@@ -82,8 +89,8 @@ export async function POST(req: NextRequest) {
       mood,
       cluster,
       summary,
-      memoryNarrative,
-      history,
+      memoryNarrative: caps.memoryRecall ? memoryNarrative : "",
+      history: trimmedHistory,
       userInput: message,
       dqnDecision: eng.getDQNDecision(),
       walletContext,

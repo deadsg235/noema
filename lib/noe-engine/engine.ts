@@ -109,12 +109,13 @@ export class NoeEngine {
   // ── Persistence: serialize engine state for KV storage ───────────────────
   serialize() {
     return {
-      state:      { ...this.state },
-      longTerm:   this.memory.getLongTerm(),
+      state:          { ...this.state },
+      longTerm:       this.memory.getLongTerm(),
       shortTermSummary: this.memory.summarize(),
-      dqnWeights: this.dqn.getWeights(),
-      epsilon:    this.dqn.getEpsilon(),
-      steps:      this.dqn.getSteps(),
+      dqnWeights:     this.dqn.getWeights(),
+      hebbianWeights: this.net.getHebbianWeights(),
+      epsilon:        this.dqn.getEpsilon(),
+      steps:          this.dqn.getSteps(),
     }
   }
 
@@ -123,6 +124,7 @@ export class NoeEngine {
     state: NoeState
     longTerm: ReturnType<NoeMemory["getLongTerm"]>
     dqnWeights: DQNWeightSnapshot
+    hebbianWeights?: ReturnType<NoeNeuralNet["getHebbianWeights"]>
     epsilon: number
     steps: number
   }) {
@@ -131,6 +133,7 @@ export class NoeEngine {
       this.memory.addMilestone(milestone.label, milestone.stateSnapshot)
     }
     this.dqn.setWeights(snap.dqnWeights, snap.epsilon, snap.steps)
+    if (snap.hebbianWeights) this.net.setHebbianWeights(snap.hebbianWeights)
   }
 
   processEvent(event: PerceptionEvent): EngineOutput {

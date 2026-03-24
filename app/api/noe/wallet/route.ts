@@ -11,6 +11,7 @@ import {
 } from "@/lib/solana"
 import { saveEngineSnapshot, loadSeenSignatures, saveSeenSignatures } from "@/lib/persistence"
 import { anchorNoeState } from "@/lib/noe-anchor"
+import { getTier, getCaps, TIER_LABELS } from "@/lib/noe-tiers"
 
 declare global {
   // eslint-disable-next-line no-var
@@ -72,7 +73,7 @@ export async function GET() {
     // Persist after real on-chain events
     if (events.length > 0) {
       const snap = eng.serialize()
-      saveEngineSnapshot({ ...snap, version: 1, savedAt: Date.now() }).catch(() => {})
+      saveEngineSnapshot({ ...snap, version: 2, savedAt: Date.now() }).catch(() => {})
       anchorNoeState(eng.getState()).catch(() => {})
     }
 
@@ -128,12 +129,15 @@ export async function POST(req: NextRequest) {
       getSolBalance(walletAddress),
     ])
 
+    const tier = getTier(tokenBalance)
+    const caps = getCaps(tokenBalance)
+
     const eng = getEngine()
     if (tokenBalance > 0) {
       const holdMagnitude = Math.min(10, Math.log10(tokenBalance + 1))
       eng.processEvent({
         type: "HOLD",
-        magnitude: holdMagnitude,
+        magnitude: Math.min(10, holdMagnitude * caps.prioritySignal),
         walletScore: Math.min(100, tokenBalance / 1000),
         timestamp: Date.now(),
         walletId: walletAddress,
@@ -145,6 +149,9 @@ export async function POST(req: NextRequest) {
       tokenBalance,
       solBalance,
       hasTokens: tokenBalance > 0,
+      tier,
+      tierLabel: TIER_LABELS[tier],
+      capabilities: caps,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown"

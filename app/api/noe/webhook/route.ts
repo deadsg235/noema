@@ -40,6 +40,12 @@ function getEngine(): NoeEngine {
 
 // ── Helius enhanced transaction types ────────────────────────────────────────
 
+const JUPITER_PROGRAMS = new Set([
+  "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+  "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB",
+  "JUP3c2Uh3WA4Ng34tw6kPd2G4LFxAt9N5vJkxCgpAny",
+])
+
 interface HeliusTokenTransfer {
   mint: string
   fromUserAccount: string
@@ -53,49 +59,49 @@ interface HeliusTransaction {
   type: string
   tokenTransfers?: HeliusTokenTransfer[]
   nativeTransfers?: { fromUserAccount: string; toUserAccount: string; amount: number }[]
+  instructions?: { programId: string }[]
+  innerInstructions?: { instructions: { programId: string }[] }[]
   feePayer: string
   fee: number
 }
 
 // ── Classify a Helius enhanced tx into a PerceptionEvent ─────────────────────
 
+function isJupiterSwap(tx: HeliusTransaction): boolean {
+  const topLevel = (tx.instructions ?? []).some(i => JUPITER_PROGRAMS.has(i.programId))
+  const inner = (tx.innerInstructions ?? []).some(ix =>
+    ix.instructions.some(i => JUPITER_PROGRAMS.has(i.programId))
+  )
+  return topLevel || inner || tx.type === "SWAP"
+}
+
 function classifyHeliusTx(tx: HeliusTransaction): PerceptionEvent | null {
   const noemaTransfers = (tx.tokenTransfers ?? []).filter(t => t.mint === NOEMA_CA)
   if (noemaTransfers.length === 0) return null
 
-  // Sum all NOEMA token movement
   const totalAmount = noemaTransfers.reduce((sum, t) => sum + Math.abs(t.tokenAmount), 0)
   if (totalAmount === 0) return null
 
   const isWhale = totalAmount > 1_000_000
   const magnitude = Math.min(10, Math.log10(totalAmount + 1))
+  const jupiter = isJupiterSwap(tx)
 
-  // Net flow: positive = tokens arriving (buy), negative = tokens leaving (sell)
-  // Use first transfer's direction as signal
   const firstTransfer = noemaTransfers[0]
   const netFlow = firstTransfer.toUserAccount !== "" ? 1 : -1
 
   let type: PerceptionEvent["type"]
-  if (isWhale) {
-    type = "WHALE_MOVE"
-  } else if (tx.type === "SWAP" && netFlow > 0) {
-    type = "BUY"
-  } else if (tx.type === "SWAP" && netFlow < 0) {
-    type = "SELL"
-  } else if (netFlow > 0) {
-    type = "BUY"
-  } else if (netFlow < 0) {
-    type = "SELL"
-  } else {
-    type = "HOLD"
-  }
+  if (isWhale)       type = "WHALE_MOVE"
+  else if (netFlow > 0) type = "BUY"
+  else if (netFlow < 0) type = "SELL"
+  else                   type = "HOLD"
 
-  // Wallet score: proxy from fee (higher fee = more sophisticated wallet)
-  const walletScore = Math.min(100, Math.round(Math.log10(tx.fee + 1) * 20))
+  // Jupiter swaps are high-conviction — boost wallet score
+  const baseScore = Math.min(80, Math.round(Math.log10(tx.fee + 1) * 20))
+  const walletScore = jupiter ? Math.min(100, baseScore + 20) : baseScore
 
   return {
     type,
-    magnitude,
+    magnitude: jupiter ? Math.min(10, magnitude * 1.25) : magnitude,
     walletScore,
     timestamp: tx.timestamp * 1000,
     walletId: firstTransfer.fromUserAccount || tx.feePayer,
@@ -151,7 +157,7 @@ export async function POST(req: NextRequest) {
 
     // Persist engine state after real events (fire-and-forget)
     const snap = eng.serialize()
-    saveEngineSnapshot({ ...snap, version: 1, savedAt: Date.now() }).catch(() => {})
+    saveEngineSnapshot({ ...snap, version: 2, savedAt: Date.now() }).catch(() => {})
 
     const engineState = eng.getState()
     const mood = computeMoodFromState(engineState)
