@@ -24,10 +24,12 @@ function NoeCanvas({ accent, energy, eyeBrightness, glitchIntensity, energyFlow 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const c = canvas.getContext("2d")
-    if (!c) return
+    const cv = canvas
+    const ctx = cv.getContext("2d")
+    if (!ctx) return
+    const c = ctx
 
-    const W = canvas.width, H = canvas.height
+    const W = cv.width, H = cv.height
     const cx = W / 2, cy = H / 2
 
     const r = parseInt(accent.slice(1, 3), 16)
@@ -218,7 +220,7 @@ function NoeCanvas({ accent, energy, eyeBrightness, glitchIntensity, energyFlow 
         c.save()
         c.globalCompositeOperation = "screen"
         c.globalAlpha = 0.35
-        c.drawImage(canvas, sx, 0)
+        c.drawImage(cv, sx, 0)
         c.globalAlpha = 0.2
         c.fillStyle = `rgba(255,0,80,0.25)`
         c.fillRect(cx - 70, sy, 140, sh)
