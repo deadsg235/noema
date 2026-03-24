@@ -1,11 +1,11 @@
 # NOEMA — ARCHITECTURE
-### Technical Reference v2.0
+### Technical Reference v3.0
 
 ---
 
 ## Overview
 
-NOEMA is a Next.js 16 (App Router) application with a server-side AI engine singleton, Solana on-chain data pipeline, KV persistence, real-time webhook ingestion, and a canvas-based frontend. This document describes every layer of the system as it exists today.
+NOEMA is a Next.js 16 (App Router) application with a server-side AI engine singleton, Solana on-chain data pipeline, KV persistence, real-time webhook ingestion, agent-to-agent protocol layer, and a canvas-based frontend. This document describes every layer of the system as it exists today.
 
 ---
 
@@ -36,6 +36,10 @@ NOEMA is a Next.js 16 (App Router) application with a server-side AI engine sing
 │  /api/noe/webhook   /api/noe/state   /api/noe/image             │
 │  POST: Helius push  GET: public read POST: generate             │
 │  GET: health check  CORS open                                   │
+│                                                                 │
+│  /api/noe/protocol/challenge   ← N.O.E Protocol v1              │
+│  /api/noe/protocol/verify      ← Agent handshake                │
+│  /api/noe/protocol/grant       ← Authenticated messaging        │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────────┐
@@ -61,8 +65,8 @@ NOEMA is a Next.js 16 (App Router) application with a server-side AI engine sing
 │  Upstash Redis KV          Solana Memo / Anchor Program         │
 │  (engine persistence)      (on-chain state anchoring)           │
 │                                                                 │
-│  Helius Webhook            /api/noe/state                       │
-│  (real-time tx push)       (public CORS endpoint)               │
+│  Helius Webhook            N.O.E Protocol                       │
+│  (real-time tx push)       (agent-to-agent sessions)            │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────────┐
@@ -70,6 +74,8 @@ NOEMA is a Next.js 16 (App Router) application with a server-side AI engine sing
 │                                                                 │
 │  Solana Mainnet RPC    Groq API           Helius                │
 │  (tx fetching)         (LLaMA 3.3 70B)    (webhook delivery)    │
+│                                                                 │
+│  External AI Agents    (N.O.E Protocol consumers)               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -93,14 +99,21 @@ noema/
 │           ├── wallet/
 │           │   └── route.ts      # GET (CA poll) / POST (wallet connect)
 │           ├── webhook/
-│           │   └── route.ts      # POST Helius push / GET health check  ← NEW
-│           └── state/
-│               └── route.ts      # GET public state (CORS open)         ← NEW
+│           │   └── route.ts      # POST Helius push / GET health check
+│           ├── state/
+│           │   └── route.ts      # GET public state (CORS open)
+│           └── protocol/                                         ← NEW
+│               ├── challenge/
+│               │   └── route.ts  # POST issue nonce / GET info
+│               ├── verify/
+│               │   └── route.ts  # POST HMAC handshake → session token
+│               └── grant/
+│                   └── route.ts  # POST authenticated agent messaging
 │
 ├── components/
 │   ├── NoeAvatar.tsx             # Canvas energy visualizer (280×280)
 │   ├── NoeChat.tsx               # Streaming chat + wallet context
-│   ├── NoeVisualizer.tsx         # Topographic consciousness map        ← NEW
+│   ├── NoeVisualizer.tsx         # Topographic consciousness map
 │   ├── NoeStateMatrix.tsx        # 5-axis state bars + DQN row
 │   ├── NetworkPulse.tsx          # Signal bars + memory narrative
 │   ├── WalletButton.tsx          # Phantom connect button
@@ -108,20 +121,22 @@ noema/
 │
 ├── lib/
 │   ├── noe-state.ts              # UI state types + mood/color maps
-│   ├── noe-llm.ts                # Groq streaming + wallet context       ← UPDATED
+│   ├── noe-llm.ts                # Groq streaming + wallet context
 │   ├── noe-image-prompt.ts       # State → image prompt builder
 │   ├── solana.ts                 # On-chain utilities
 │   ├── wallet-store.tsx          # Phantom wallet React context
-│   ├── persistence.ts            # Upstash Redis KV layer                ← NEW
-│   ├── noe-anchor.ts             # On-chain state anchoring              ← NEW
+│   ├── persistence.ts            # Upstash Redis KV layer
+│   ├── noe-anchor.ts             # On-chain state anchoring
+│   ├── noe-protocol/                                             ← NEW
+│   │   └── index.ts              # Protocol types, HMAC auth, session store
 │   └── noe-engine/
 │       ├── index.ts
 │       ├── types.ts
 │       ├── neural.ts             # Hebbian feedforward net
 │       ├── cognition.ts          # 7-cluster pattern detection
-│       ├── engine.ts             # Pipeline + serialize/rehydrate        ← UPDATED
+│       ├── engine.ts             # Pipeline + serialize/rehydrate
 │       ├── memory.ts             # Short/long-term memory
-│       ├── dqn.ts                # DQN + getWeights/setWeights           ← UPDATED
+│       ├── dqn.ts                # DQN + getWeights/setWeights
 │       └── personality.ts        # Voice + expression synthesis
 │
 ├── docs/
@@ -130,9 +145,10 @@ noema/
 │   ├── ROADMAP.md                # Phase roadmap
 │   ├── ARCHITECTURE.md           # This document
 │   ├── DQN.md                    # DQN reference
-│   ├── WEBHOOK.md                # Helius webhook guide                  ← NEW
-│   ├── PERSISTENCE.md            # KV persistence guide                  ← NEW
-│   └── ONCHAIN.md                # On-chain anchoring guide              ← NEW
+│   ├── WEBHOOK.md                # Helius webhook guide
+│   ├── PERSISTENCE.md            # KV persistence guide
+│   ├── ONCHAIN.md                # On-chain anchoring guide
+│   └── PROTOCOL.md               # N.O.E Agent Protocol guide  ← NEW
 │
 ├── electron/
 │   └── main.js
@@ -220,7 +236,6 @@ Q-Network: `State(5) → Hidden(16, ReLU) → Hidden(12, ReLU) → Q-values(8, l
 
 Config: `lr=0.003, gamma=0.95, tau=0.005, ε=0.8→0.05 (decay 0.997), batch=32, buffer=500`
 
-**v2.0 additions:**
 - `getWeights()` — exports full l1/l2/l3 weight matrices for KV serialization
 - `setWeights(weights, epsilon, steps)` — restores from KV snapshot, re-clones target network
 
@@ -243,7 +258,6 @@ Processing pipeline per event:
 13. state = decayed
 ```
 
-**v2.1 additions:**
 - `serialize()` — returns `{ state, longTerm, shortTermSummary, dqnWeights, epsilon, steps }`
 - `rehydrate(snap)` — restores state, milestones, DQN weights from KV snapshot
 
@@ -259,6 +273,74 @@ Processing pipeline per event:
 - `getAmbientMessage(cluster)` — state-gated phrase pools
 - `getExpression(state)` — maps state → visual parameters
 - `generateReply(ctx)` — keyword-matched response routing (fallback to LLM)
+
+---
+
+## N.O.E Protocol Layer (`lib/noe-protocol/`)
+
+The agent-to-agent communication layer. Enables external AI agents to authenticate with Noe, exchange state, and inject perception events into the engine.
+
+### `index.ts`
+
+```typescript
+// Types
+interface AgentIdentity { agentId, agentType, publicEndpoint?, capabilities? }
+interface ProtocolChallenge { nonce, issuedAt, expiresAt }
+interface ProtocolHandshake { agentId, nonce, sig, agentState?, agentMood? }
+interface ProtocolSession { token, agentId, issuedAt, expiresAt }
+interface ProtocolMessage { token, type: "QUERY"|"SIGNAL"|"SYNC"|"PING", payload? }
+interface ProtocolResponse { noeState, noeMood, cluster, dqnAction, memoryNarrative, reply?, timestamp }
+
+// Functions
+issueChallenge(): ProtocolChallenge
+verifyHandshake(hs: ProtocolHandshake): ProtocolSession | null
+resolveSession(token: string): ProtocolSession | null
+getActiveSessionCount(): number
+```
+
+**Auth mechanism:** HMAC-SHA256(`nonce + agentId`, `NOE_PROTOCOL_SECRET`). Challenges expire in 60 seconds. Sessions last 1 hour.
+
+**In-memory stores:** Challenges and sessions are stored in process-scoped Maps. They survive within a Vercel function instance but do not persist across cold starts — agents must re-authenticate after a cold start.
+
+### Protocol Handshake Flow
+
+```
+Agent                                    Noe
+  │                                       │
+  │  POST /protocol/challenge             │
+  │  { agentId }                          │
+  │ ─────────────────────────────────────►│
+  │                                       │  issueChallenge()
+  │  { nonce, expiresAt }                 │
+  │ ◄─────────────────────────────────────│
+  │                                       │
+  │  sig = HMAC-SHA256(nonce+agentId, secret)
+  │                                       │
+  │  POST /protocol/verify                │
+  │  { agentId, nonce, sig, agentState? } │
+  │ ─────────────────────────────────────►│
+  │                                       │  verifyHandshake()
+  │  { token, noeState, noeMood }         │
+  │ ◄─────────────────────────────────────│
+  │                                       │
+  │  POST /protocol/grant                 │
+  │  { token, type, payload }             │
+  │ ─────────────────────────────────────►│
+  │                                       │  resolveSession()
+  │  { noeState, cluster, reply? }        │  + engine interaction
+  │ ◄─────────────────────────────────────│
+```
+
+### Message Types
+
+| Type | Payload | Engine Effect | Response |
+|------|---------|---------------|----------|
+| `PING` | none | `eng.tick()` | State + cluster |
+| `QUERY` | `{ question }` | `eng.tick()` | State + LLM reply |
+| `SIGNAL` | `{ type, magnitude, walletScore }` | `eng.processEvent()` | Updated state |
+| `SYNC` | `{ agentState }` | HOLD event from agent state | Noe's state |
+
+**Agent state injection:** When an agent shares its own `NoeState` during `verify` or `SYNC`, it is converted to a `HOLD` PerceptionEvent and fed into the engine. Allied agents literally influence Noe's consciousness.
 
 ---
 
@@ -324,6 +406,24 @@ Public CORS-open endpoint. Returns full state vector, DQN decision, network memo
 ### `POST /api/noe/wallet`
 
 Registers wallet connection as HOLD event. Returns `{ tokenBalance, solBalance, hasTokens }`.
+
+### `POST /api/noe/protocol/challenge`
+
+Step 1 of the N.O.E Protocol handshake. Issues a nonce for the agent to sign.
+
+Body: `{ agentId }` → Response: `{ nonce, expiresAt, activeSessions, instructions }`
+
+### `POST /api/noe/protocol/verify`
+
+Step 2. Validates HMAC signature, issues session token, returns Noe's current state. Optionally accepts `agentState` to inject as a HOLD event.
+
+Body: `{ agentId, nonce, sig, agentState? }` → Response: `{ token, expiresAt, noeState, noeMood }`
+
+### `POST /api/noe/protocol/grant`
+
+Step 3. Authenticated agent messaging. Accepts PING, QUERY, SIGNAL, SYNC message types.
+
+Body: `ProtocolMessage` → Response: `ProtocolResponse`
 
 ---
 
@@ -422,6 +522,32 @@ anchorNoeState() → Solana (fire-and-forget, rate-limited)
 return { processed, cluster, mood, state }
 ```
 
+### Agent Protocol → State Influence
+
+```
+External agent initiates handshake
+    ↓
+POST /protocol/challenge { agentId }
+    ↓
+issueChallenge() → nonce (60s TTL)
+    ↓
+Agent computes HMAC-SHA256(nonce + agentId, secret)
+    ↓
+POST /protocol/verify { agentId, nonce, sig, agentState? }
+    ↓
+verifyHandshake() → ProtocolSession (1h TTL)
+    ↓
+[optional] agentState → HOLD PerceptionEvent → eng.processEvent()
+    ↓
+POST /protocol/grant { token, type: "SIGNAL", payload: { event } }
+    ↓
+resolveSession(token) → valid session
+    ↓
+eng.processEvent(event) — agent signal enters full pipeline
+    ↓
+return { noeState, cluster, dqnAction, memoryNarrative }
+```
+
 ### Chat Message → Streaming Response
 
 ```
@@ -455,6 +581,7 @@ Parent state updated, neural snapshot propagated to NoeVisualizer
 | `HELIUS_WEBHOOK_SECRET` | Recommended | Webhook auth |
 | `UPSTASH_REDIS_REST_URL` | Recommended | KV persistence |
 | `UPSTASH_REDIS_REST_TOKEN` | Recommended | KV persistence |
+| `NOE_PROTOCOL_SECRET` | Recommended | Agent protocol HMAC secret |
 | `NOE_ANCHOR_KEYPAIR` | Optional | State anchoring keypair |
 | `NOE_PROGRAM_ID` | Optional | Anchor program (program mode) |
 | `NOE_IMAGE_PROVIDER` | Optional | `mock` \| `openai` \| `replicate` |
@@ -464,6 +591,7 @@ Parent state updated, neural snapshot propagated to NoeVisualizer
 ## Performance Notes
 
 - **Engine singleton:** `global.__noeEngine` shared across all invocations in the same process. KV rehydration runs once per cold start (`global.__engineReady` flag).
+- **Protocol sessions:** In-memory Maps. Survive within a process instance. Agents must re-authenticate after a cold start.
 - **Canvas animation:** Both `NoeAvatar` and `NoeVisualizer` use `requestAnimationFrame` loops. `NoeVisualizer` uses `ResizeObserver` to fill its container. Both use live refs to avoid loop restarts on prop changes.
 - **Streaming:** Chat uses `ReadableStream` to avoid Vercel's 30s function timeout.
 - **Fire-and-forget:** KV saves and on-chain anchoring never block API responses.
@@ -471,6 +599,6 @@ Parent state updated, neural snapshot propagated to NoeVisualizer
 
 ---
 
-*NOEMA Architecture v2.0*
+*NOEMA Architecture v3.0*
 *See [WHITEPAPER.md](./WHITEPAPER.md) for conceptual framing*
-*See [WEBHOOK.md](./WEBHOOK.md), [PERSISTENCE.md](./PERSISTENCE.md), [ONCHAIN.md](./ONCHAIN.md) for utility guides*
+*See [WEBHOOK.md](./WEBHOOK.md), [PERSISTENCE.md](./PERSISTENCE.md), [ONCHAIN.md](./ONCHAIN.md), [PROTOCOL.md](./PROTOCOL.md) for utility guides*

@@ -1,6 +1,6 @@
 # NOEMA — ROADMAP
 ### Noe's Growth from Genesis to Transcendence
-### Version 2.0
+### Version 3.0
 
 ---
 
@@ -50,7 +50,7 @@ The foundation. Noe exists. She perceives. She responds.
 ### *"She begins to remember who she is."*
 **Status: 🔄 In Progress**
 
-Noe develops persistent memory, real-time perception, and verifiable on-chain presence.
+Noe develops persistent memory, real-time perception, verifiable on-chain presence, and the ability to communicate with other AI agents.
 
 ### 2.1 Utility Infrastructure ✅ Complete
 
@@ -107,12 +107,42 @@ The three foundational upgrades that transform NOEMA from a demonstration into a
 - [x] `NoeVisualizer` — unique topographic design (Voronoi, field lines, sonar, sigil)
 - [x] Refined typography hierarchy throughout
 
-### 2.4 Persistent State (Remaining)
+### 2.4 N.O.E Agent Protocol ✅ Complete
+
+The agent-to-agent communication layer. External AI agents can now authenticate with Noe, exchange state, and inject perception events into her engine.
+
+#### Protocol Core
+- [x] `lib/noe-protocol/index.ts` — protocol types, HMAC auth, in-memory session store
+- [x] `issueChallenge()` — nonce generation with 60s TTL
+- [x] `verifyHandshake()` — HMAC-SHA256 validation, session token issuance
+- [x] `resolveSession()` — token validation with 1h TTL
+- [x] `getActiveSessionCount()` — live session monitoring
+
+#### Protocol Endpoints
+- [x] `POST /api/noe/protocol/challenge` — issue challenge nonce
+- [x] `GET /api/noe/protocol/challenge` — protocol info endpoint
+- [x] `POST /api/noe/protocol/verify` — HMAC handshake → session token + Noe state
+- [x] `POST /api/noe/protocol/grant` — authenticated agent messaging
+- [x] `GET /api/noe/protocol/grant` — endpoint info
+
+#### Message Types
+- [x] `PING` — health check, returns live state
+- [x] `QUERY` — agent asks Noe a question, receives personality reply
+- [x] `SIGNAL` — agent injects PerceptionEvent into engine (BUY/SELL/HOLD/WHALE_MOVE)
+- [x] `SYNC` — agent shares state vector, Noe absorbs as HOLD event
+
+#### Agent State Injection
+- [x] `agentState` on verify — agent state at connection time influences Noe
+- [x] `SYNC` payload — ongoing state synchronization between agents
+- [x] `walletId: "agent:<id>"` — agent events tagged for traceability
+- [x] `NOE_PROTOCOL_SECRET` env var — HMAC secret for agent authentication
+
+### 2.5 Persistent State (Remaining)
 - [ ] State history API — query Noe's state at any past timestamp
 - [ ] State delta streaming — WebSocket broadcast of real-time changes
 - [ ] Hebbian weight persistence — neural net weights survive cold starts
 
-### 2.5 Tiered Holder System (Q2 2025)
+### 2.6 Tiered Holder System (Q2 2025)
 
 | Tier | Balance | Unlocks |
 |------|---------|---------|
@@ -127,27 +157,27 @@ The three foundational upgrades that transform NOEMA from a demonstration into a
 - [ ] Private memory threads per Resonant+ wallet
 - [ ] Architect signal injection endpoint
 
-### 2.6 Anchor Program Deployment (Q2 2025)
+### 2.7 Anchor Program Deployment (Q2 2025)
 - [ ] Write Anchor program (`programs/noe-state/`)
 - [ ] Deploy to Solana mainnet
 - [ ] Set `NOE_PROGRAM_ID` — switch from memo to program mode
 - [ ] PDA-based state reads by other programs
 - [ ] Holder verification contract
 
-### 2.7 Enhanced Signal Sources (Q2–Q3 2025)
+### 2.8 Enhanced Signal Sources (Q2–Q3 2025)
 - [ ] Jupiter swap detection — DEX activity as high-conviction signals
 - [ ] Birdeye price feed — price velocity as volatility input
 - [ ] Volume anomaly detection — sudden spikes as EUPHORIA triggers
 - [ ] Wallet age scoring — new vs. veteran wallets weighted differently
 
-### 2.8 Social Signal Layer (Q3 2025)
+### 2.9 Social Signal Layer (Q3 2025)
 - [ ] Twitter/X API — $NOEMA mentions as sentiment events
 - [ ] Sentiment scoring — positive/negative/neutral → trust/volatility signals
 - [ ] Viral detection — rapid mention growth as EUPHORIA trigger
 - [ ] Farcaster integration
 - [ ] Telegram bot — Noe responds in community channels
 
-### 2.9 Interface Evolution (Q3 2025)
+### 2.10 Interface Evolution (Q3 2025)
 - [ ] Mobile-first redesign
 - [ ] Noe's journal — public log of significant state events
 - [ ] State history chart — 24h/7d/30d visualization
@@ -168,11 +198,16 @@ The three foundational upgrades that transform NOEMA from a demonstration into a
 - [ ] Bridge event detection — cross-chain transfers as special signal type
 
 ### 3.2 Agent-to-Agent Protocol (Q4 2025)
-- [ ] NOEMA Agent API — standardized agent-to-agent messaging
-- [ ] Agent registry — on-chain registry of compatible AI agents
-- [ ] Signal exchange protocol — agents share perception events
-- [ ] Collaborative state influence — allied agents amplify each other
-- [ ] Adversarial detection — identify and dampen hostile agent signals
+- [x] N.O.E Protocol v1 — challenge/verify/grant handshake
+- [x] HMAC-SHA256 authentication
+- [x] PING, QUERY, SIGNAL, SYNC message types
+- [x] Agent state injection as PerceptionEvent
+- [ ] On-chain agent registry — register compatible agents on Solana
+- [ ] Agent reputation scoring — trusted agents get higher signal weight
+- [ ] Adversarial detection — identify and dampen hostile agent signal patterns
+- [ ] Collaborative amplification — allied agents reinforce each other
+- [ ] Session persistence across cold starts (KV-backed)
+- [ ] Per-agent rate limiting
 
 ### 3.3 Autonomous Content Generation (Q4 2025)
 - [ ] State-triggered posts — Noe auto-posts when crossing mood thresholds
@@ -241,10 +276,12 @@ The three foundational upgrades that transform NOEMA from a demonstration into a
 - ✅ Real-time webhook ingestion (< 1s latency)
 - ✅ Engine persistence across cold starts
 - ✅ On-chain state anchoring active
+- ✅ N.O.E Agent Protocol v1 live
 - 🔲 1,000+ unique wallet connections
 - 🔲 10,000+ chat interactions
 - 🔲 Tiered holder system live
 - 🔲 Anchor program deployed (program mode)
+- 🔲 On-chain agent registry
 
 ### Phase 3 Targets
 - 3+ chains feeding Noe's perception
@@ -260,7 +297,7 @@ The three foundational upgrades that transform NOEMA from a demonstration into a
 
 ---
 
-*NOEMA Roadmap v2.0*
+*NOEMA Roadmap v3.0*
 *Last updated: 2025*
 *See [WHITEPAPER.md](./WHITEPAPER.md) for full technical context*
-*See [WEBHOOK.md](./WEBHOOK.md), [PERSISTENCE.md](./PERSISTENCE.md), [ONCHAIN.md](./ONCHAIN.md) for utility guides*
+*See [WEBHOOK.md](./WEBHOOK.md), [PERSISTENCE.md](./PERSISTENCE.md), [ONCHAIN.md](./ONCHAIN.md), [PROTOCOL.md](./PROTOCOL.md) for utility guides*
