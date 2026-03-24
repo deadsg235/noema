@@ -1,31 +1,59 @@
 import { NextRequest, NextResponse } from "next/server"
 import { NoeEngine, NoePersonality, PerceptionEvent } from "@/lib/noe-engine"
 import { computeMoodFromState, NoeUIState } from "@/lib/noe-state"
+import { loadEngineSnapshot, saveEngineSnapshot, loadSeenSignatures } from "@/lib/persistence"
+import { anchorNoeState } from "@/lib/noe-anchor"
 
-// Global singleton — shared with /api/noe/chat
 declare global {
   // eslint-disable-next-line no-var
   var __noeEngine: NoeEngine | undefined
+  // eslint-disable-next-line no-var
+  var __engineReady: boolean | undefined
+  // eslint-disable-next-line no-var
+  var __lastSignatures: Set<string> | undefined
 }
 
-function getEngine(): NoeEngine {
-  if (!global.__noeEngine) global.__noeEngine = new NoeEngine()
-  return global.__noeEngine
+// ── Engine singleton with KV rehydration on cold start ───────────────────────
+
+async function getEngine(): Promise<NoeEngine> {
+  if (global.__noeEngine && global.__engineReady) return global.__noeEngine
+
+  const eng = global.__noeEngine ?? new NoeEngine()
+  global.__noeEngine = eng
+
+  if (!global.__engineReady) {
+    // Attempt to rehydrate from KV
+    try {
+      const snap = await loadEngineSnapshot()
+      if (snap) {
+        eng.rehydrate(snap)
+        console.log(`[noe] rehydrated from KV — steps: ${snap.steps}, epsilon: ${snap.epsilon.toFixed(3)}`)
+      }
+    } catch (err) {
+      console.warn("[noe] rehydration failed, starting fresh:", err)
+    }
+
+    // Load seen signatures into memory
+    try {
+      global.__lastSignatures = await loadSeenSignatures()
+    } catch {}
+
+    global.__engineReady = true
+  }
+
+  return eng
 }
 
-// Simulate realistic on-chain signal ingestion
 function generateSignalBatch(count = 3): PerceptionEvent[] {
   const types: PerceptionEvent["type"][] = ["BUY", "SELL", "HOLD", "WHALE_MOVE"]
-  // Weight distribution: more buys/holds than sells/whales
   const weights = [0.35, 0.25, 0.30, 0.10]
   const cumulative = weights.reduce<number[]>((acc, w, i) => {
     acc.push((acc[i - 1] ?? 0) + w)
     return acc
   }, [])
-
   return Array.from({ length: count }, () => {
     const r = Math.random()
-    const typeIdx = cumulative.findIndex(c => r <= c)
+    const typeIdx = cumulative.findIndex((c) => r <= c)
     return {
       type: types[typeIdx] ?? "HOLD",
       magnitude: Math.random() * 10,
@@ -40,8 +68,6 @@ function buildUIState(eng: NoeEngine, cluster: string, milestone: string | null)
   const engineState = eng.getState()
   const mood = computeMoodFromState(engineState)
   const expression = NoePersonality.getExpression(engineState)
-  const memoryNarrative = eng.memory.recallNarrative()
-
   expression.text = NoePersonality.getAmbientMessage(cluster as any)
 
   return {
@@ -58,13 +84,13 @@ function buildUIState(eng: NoeEngine, cluster: string, milestone: string | null)
     expression,
     cluster,
     milestoneTriggered: milestone,
-    memoryNarrative,
+    memoryNarrative: eng.memory.recallNarrative(),
     dqnDecision: eng.getDQNDecision(),
   }
 }
 
 export async function GET() {
-  const eng = getEngine()
+  const eng = await getEngine()
   const events = generateSignalBatch(3)
   let lastOutput = eng.tick()
 
@@ -72,16 +98,22 @@ export async function GET() {
     lastOutput = eng.processEvent(event)
   }
 
-  return NextResponse.json(
-    buildUIState(eng, lastOutput.cognition.cluster, lastOutput.milestoneTriggered)
-  )
+  const uiState = buildUIState(eng, lastOutput.cognition.cluster, lastOutput.milestoneTriggered)
+
+  // Persist engine state (fire-and-forget, every ~7s poll)
+  const snap = eng.serialize()
+  saveEngineSnapshot({ ...snap, version: 1, savedAt: Date.now() }).catch(() => {})
+
+  // Anchor on-chain (rate-limited internally to every 5 min)
+  anchorNoeState(eng.getState()).catch(() => {})
+
+  return NextResponse.json(uiState)
 }
 
 export async function POST(req: NextRequest) {
   const { message } = await req.json()
-  const eng = getEngine()
+  const eng = await getEngine()
 
-  // User interaction triggers a burst of activity
   const events = generateSignalBatch(5)
   let lastOutput = eng.tick()
   for (const event of events) {

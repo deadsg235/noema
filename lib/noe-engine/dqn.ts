@@ -405,4 +405,29 @@ export class NoeDQN {
   getSteps(): number { return this.steps }
   getEpsilon(): number { return this.cfg.epsilon }
   getBufferSize(): number { return this.buffer.size }
+
+  // ── Persistence: export weights for KV storage ──────────────────────────
+  getWeights() {
+    return {
+      l1w: this.online.l1.w.map(r => [...r]),
+      l1b: [...this.online.l1.b],
+      l2w: this.online.l2.w.map(r => [...r]),
+      l2b: [...this.online.l2.b],
+      l3w: this.online.l3.w.map(r => [...r]),
+      l3b: [...this.online.l3.b],
+    }
+  }
+
+  // ── Persistence: restore weights from KV snapshot ───────────────────────
+  setWeights(w: { l1w: number[][]; l1b: number[]; l2w: number[][]; l2b: number[]; l3w: number[][]; l3b: number[] }, epsilon: number, steps: number) {
+    this.online.l1.w = w.l1w.map(r => [...r])
+    this.online.l1.b = [...w.l1b]
+    this.online.l2.w = w.l2w.map(r => [...r])
+    this.online.l2.b = [...w.l2b]
+    this.online.l3.w = w.l3w.map(r => [...r])
+    this.online.l3.b = [...w.l3b]
+    this.target = this.online.clone()
+    this.cfg.epsilon = epsilon
+    this.steps = steps
+  }
 }

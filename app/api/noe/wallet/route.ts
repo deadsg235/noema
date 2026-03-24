@@ -9,10 +9,14 @@ import {
   getSolBalance,
   getConnection,
 } from "@/lib/solana"
+import { saveEngineSnapshot, loadSeenSignatures, saveSeenSignatures } from "@/lib/persistence"
+import { anchorNoeState } from "@/lib/noe-anchor"
 
 declare global {
   // eslint-disable-next-line no-var
   var __noeEngine: NoeEngine | undefined
+  // eslint-disable-next-line no-var
+  var __engineReady: boolean | undefined
   // eslint-disable-next-line no-var
   var __lastWalletFetch: number | undefined
   // eslint-disable-next-line no-var
@@ -24,46 +28,52 @@ function getEngine(): NoeEngine {
   return global.__noeEngine
 }
 
-// GET — fetch on-chain CA transactions, feed into engine, return updated state
+async function getSeenSigs(): Promise<Set<string>> {
+  if (!global.__lastSignatures) {
+    global.__lastSignatures = await loadSeenSignatures()
+  }
+  return global.__lastSignatures
+}
+
 export async function GET() {
   const eng = getEngine()
   const now = Date.now()
 
-  // Rate-limit on-chain fetches to once every 15s
   const lastFetch = global.__lastWalletFetch ?? 0
   if (now - lastFetch < 15_000) {
     return NextResponse.json({ skipped: true, reason: "rate_limited" })
   }
   global.__lastWalletFetch = now
-  global.__lastSignatures = global.__lastSignatures ?? new Set()
 
   try {
     const conn = getConnection()
+    const seenSigs = await getSeenSigs()
     const signatures = await fetchRecentSignatures(15)
-    const newSigs = signatures.filter((s) => !global.__lastSignatures!.has(s.signature))
+    const newSigs = signatures.filter((s) => !seenSigs.has(s.signature))
 
     if (newSigs.length === 0) {
       return NextResponse.json({ processed: 0, newEvents: 0 })
     }
 
-    // Parse new transactions (cap at 8 to avoid RPC rate limits)
     const parsed = await Promise.all(
       newSigs.slice(0, 8).map((s) => parseTransaction(conn, s.signature))
     )
     const valid = parsed.filter((t): t is NonNullable<typeof t> => t !== null)
 
-    // Mark as seen
-    for (const s of newSigs) global.__lastSignatures!.add(s.signature)
-    if (global.__lastSignatures!.size > 500) {
-      const arr = [...global.__lastSignatures!]
-      global.__lastSignatures = new Set(arr.slice(-200))
-    }
+    for (const s of newSigs) seenSigs.add(s.signature)
+    saveSeenSignatures(seenSigs).catch(() => {})
 
-    // Feed real events into N.O.E engine
     const events = toPerceptionEvents(valid)
     let lastOutput = eng.tick()
     for (const event of events) {
       lastOutput = eng.processEvent(event)
+    }
+
+    // Persist after real on-chain events
+    if (events.length > 0) {
+      const snap = eng.serialize()
+      saveEngineSnapshot({ ...snap, version: 1, savedAt: Date.now() }).catch(() => {})
+      anchorNoeState(eng.getState()).catch(() => {})
     }
 
     const engineState = eng.getState()
@@ -107,7 +117,6 @@ export async function GET() {
   }
 }
 
-// POST — called when a user connects their Phantom wallet
 export async function POST(req: NextRequest) {
   try {
     const { walletAddress } = await req.json()
@@ -118,7 +127,6 @@ export async function POST(req: NextRequest) {
       getSolBalance(walletAddress),
     ])
 
-    // Holding NOEMA tokens = trust signal for the engine
     const eng = getEngine()
     if (tokenBalance > 0) {
       const holdMagnitude = Math.min(10, Math.log10(tokenBalance + 1))
