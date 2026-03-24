@@ -149,6 +149,7 @@ function NoeCanvas({
       a: [number, number, number], b: [number, number, number],
       alpha: number, width: number
     ) {
+      if (!ctx) return
       ctx.beginPath()
       ctx.moveTo(a[0], a[1])
       ctx.lineTo(b[0], b[1])
