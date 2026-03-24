@@ -1,53 +1,58 @@
 /**
- * N.O.E — Core Engine
+ * N.O.E — Core Engine v2
  *
- * The unified processing pipeline:
+ * Processing pipeline:
  *   PerceptionEvent
- *     → NoeNeuralNet (forward pass + Hebbian learning)
- *     → NoeCognition (pattern detection + meaning)
- *     → State blending (neural output + cognitive adjustment)
+ *     → NoeNeuralNet    (Hebbian feedforward — pattern encoding)
+ *     → NoeCognition    (cluster detection — market interpretation)
+ *     → NoeDQN          (action selection — how Noe responds)
+ *     → State blending  (neural + cognitive + DQN action delta)
  *     → Temporal decay
- *     → NoeMemory (short-term buffer + milestone detection)
- *     → NoeState (the living heartbeat)
+ *     → NoeMemory       (short-term buffer + milestone detection)
+ *     → NoeState        (the living output)
+ *
+ * The DQN layer is the key addition from dqn-core/:
+ * Instead of hard-coded cognition→state mappings, Noe now
+ * *decides* how to respond to market conditions via a learned
+ * policy that improves through experience replay.
  */
 
-import { NoeState, PerceptionEvent } from "./types"
+import { NoeState, PerceptionEvent, DQNDecision } from "./types"
 import { NoeNeuralNet, NeuralNetSnapshot, encodeEvent } from "./neural"
 import { NoeCognition, CognitionResult, PatternCluster } from "./cognition"
 import { NoeMemory } from "./memory"
+import { NoeDQN, applyAction, computeReward, NoeAction } from "./dqn"
 
 export interface EngineOutput {
-  state: NoeState
-  cognition: CognitionResult
-  neuralSnapshot: NeuralNetSnapshot
+  state:              NoeState
+  cognition:          CognitionResult
+  neuralSnapshot:     NeuralNetSnapshot
+  dqnDecision:        DQNDecision
   milestoneTriggered: string | null
 }
 
-// How much the cognitive layer can shift the neural output (0-1)
-const COGNITION_BLEND = 0.35
+const COGNITION_BLEND = 0.25   // reduced — DQN now handles more of the adjustment
+const DQN_BLEND       = 0.20   // how much DQN action delta influences final state
 
-// Lerp helper
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t
-}
+function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
+function clamp(v: number): number { return Math.max(0, Math.min(1, v)) }
 
-function clamp(v: number): number {
-  return Math.max(0, Math.min(1, v))
-}
-
-// Blend neural output with cognitive adjustment
-function blendState(neural: NoeState, cognitive: Partial<NoeState>, blend: number): NoeState {
+function blendState(
+  neural:    NoeState,
+  cognitive: Partial<NoeState>,
+  dqnDelta:  Partial<NoeState>,
+  cogBlend:  number,
+  dqnBlend:  number
+): NoeState {
   const keys: (keyof NoeState)[] = ["stability", "trust", "energy", "volatility", "growth"]
   const result = { ...neural }
   for (const k of keys) {
-    if (cognitive[k] !== undefined) {
-      result[k] = clamp(lerp(neural[k], cognitive[k]!, blend))
-    }
+    if (cognitive[k] !== undefined) result[k] = clamp(lerp(result[k], cognitive[k]!, cogBlend))
+    if (dqnDelta[k]  !== undefined) result[k] = clamp(lerp(result[k], dqnDelta[k]!,  dqnBlend))
   }
   return result
 }
 
-// Natural decay — Noe returns toward baseline when quiet
 function decay(state: NoeState): NoeState {
   return {
     stability:  clamp(lerp(state.stability,  0.5, 0.003)),
@@ -58,26 +63,24 @@ function decay(state: NoeState): NoeState {
   }
 }
 
-// Detect if a state transition is significant enough to be a milestone
-function detectMilestone(prev: NoeState, next: NoeState, cluster: PatternCluster): string | null {
-  const energyDelta = Math.abs(next.energy - prev.energy)
-  const trustDelta = Math.abs(next.trust - prev.trust)
-  const volatilityDelta = Math.abs(next.volatility - prev.volatility)
-
-  if (cluster === "PANIC" && next.trust < 0.2) return "The Great Exit"
-  if (cluster === "EUPHORIA" && next.energy > 0.85) return "The First Surge"
-  if (cluster === "CONSOLIDATION" && next.trust > 0.8) return "Stability Phase"
-  if (cluster === "WHALE_DOMINANCE" && volatilityDelta > 0.3) return "Whale Event"
-  if (cluster === "ACCUMULATION" && next.growth > 0.75) return "Growth Threshold Crossed"
-  if (energyDelta > 0.4) return "Energy Spike"
-  if (trustDelta > 0.35) return "Trust Shift"
+function detectMilestone(prev: NoeState, next: NoeState, cluster: PatternCluster, action: NoeAction): string | null {
+  if (cluster === "PANIC"         && next.trust < 0.2)       return "The Great Exit"
+  if (cluster === "EUPHORIA"      && next.energy > 0.85)     return "The First Surge"
+  if (cluster === "CONSOLIDATION" && next.trust > 0.8)       return "Stability Phase"
+  if (cluster === "WHALE_DOMINANCE" && Math.abs(next.volatility - prev.volatility) > 0.3) return "Whale Event"
+  if (cluster === "ACCUMULATION"  && next.growth > 0.75)     return "Growth Threshold Crossed"
+  if (action === "RESONATE"       && next.energy > 0.8)      return "Resonance Peak"
+  if (action === "SEEK_STABILITY" && next.stability > 0.85)  return "Deep Stability"
+  if (Math.abs(next.energy - prev.energy) > 0.4)             return "Energy Spike"
+  if (Math.abs(next.trust  - prev.trust)  > 0.35)            return "Trust Shift"
   return null
 }
 
 export class NoeEngine {
-  private net: NoeNeuralNet
+  private net:       NoeNeuralNet
   private cognition: NoeCognition
-  readonly memory: NoeMemory
+  readonly memory:   NoeMemory
+  private dqn:       NoeDQN
 
   private state: NoeState = {
     stability:  0.5,
@@ -87,69 +90,90 @@ export class NoeEngine {
     growth:     0.5,
   }
 
-  constructor() {
-    this.net = new NoeNeuralNet()
-    this.cognition = new NoeCognition()
-    this.memory = new NoeMemory()
+  private lastAction: NoeAction = "CONSERVE"
+  private lastDQNDecision: DQNDecision = {
+    action: "CONSERVE", qValues: new Array(8).fill(0),
+    chosenQ: 0, epsilon: 0.8, reward: 0, bufferSize: 0, steps: 0,
   }
 
-  getState(): NoeState {
-    return { ...this.state }
+  constructor() {
+    this.net       = new NoeNeuralNet()
+    this.cognition = new NoeCognition()
+    this.memory    = new NoeMemory()
+    this.dqn       = new NoeDQN()
   }
+
+  getState(): NoeState { return { ...this.state } }
+
+  getDQNDecision(): DQNDecision { return { ...this.lastDQNDecision } }
 
   processEvent(event: PerceptionEvent): EngineOutput {
     const prevState = { ...this.state }
 
-    // 1. Encode event → input vector
+    // 1. Neural forward pass + Hebbian learning
     const input = encodeEvent(event)
-
-    // 2. Neural forward pass
     const { state: neuralState, snapshot } = this.net.forward(input)
-
-    // 3. Hebbian learning — Noe learns from this event
     this.net.hebbianUpdate(input)
 
-    // 4. Store in short-term memory
+    // 2. Memory
     this.memory.addEvent(event)
 
-    // 5. Cognition — detect pattern from recent memory
-    const recentEvents = this.memory.getShortTerm()
+    // 3. Cognition — cluster detection
+    const recentEvents   = this.memory.getShortTerm()
     const cognitionResult = this.cognition.detectPattern(recentEvents)
 
-    // 6. Blend neural output with cognitive adjustment
-    const blended = blendState(neuralState, cognitionResult.stateAdjustment, COGNITION_BLEND)
+    // 4. DQN — action selection on current state
+    const { action, snapshot: qSnap } = this.dqn.selectAction(this.state)
 
-    // 7. Apply temporal decay
+    // 5. Apply action delta
+    const actionDelta = applyAction(this.state, action)
+
+    // 6. Blend: neural (base) + cognitive adjustment + DQN action
+    const blended = blendState(
+      neuralState,
+      cognitionResult.stateAdjustment,
+      actionDelta,
+      COGNITION_BLEND,
+      DQN_BLEND
+    )
+
+    // 7. Decay
     const decayed = decay(blended)
 
-    // 8. Detect milestone
-    const milestone = detectMilestone(prevState, decayed, cognitionResult.cluster)
-    if (milestone) {
-      this.memory.addMilestone(milestone, decayed)
+    // 8. Compute reward for the action just taken, store experience
+    const reward = computeReward(prevState, decayed)
+    this.dqn.observe(prevState, this.lastAction, reward, decayed)
+
+    // 9. Milestone detection
+    const milestone = detectMilestone(prevState, decayed, cognitionResult.cluster, action)
+    if (milestone) this.memory.addMilestone(milestone, decayed)
+
+    this.state      = decayed
+    this.lastAction = action
+    this.lastDQNDecision = {
+      action,
+      qValues:    qSnap.qValues,
+      chosenQ:    qSnap.chosenQ,
+      epsilon:    this.dqn.getEpsilon(),
+      reward,
+      bufferSize: this.dqn.getBufferSize(),
+      steps:      this.dqn.getSteps(),
     }
 
-    this.state = decayed
-
     return {
-      state: this.state,
-      cognition: cognitionResult,
-      neuralSnapshot: snapshot,
+      state:              this.state,
+      cognition:          cognitionResult,
+      neuralSnapshot:     snapshot,
+      dqnDecision:        this.lastDQNDecision,
       milestoneTriggered: milestone,
     }
   }
 
-  // Tick without an event — just decay and re-evaluate
   tick(): EngineOutput {
-    const syntheticEvent: PerceptionEvent = {
-      type: "HOLD",
-      magnitude: 0.1,
-      walletScore: 50,
-      timestamp: Date.now(),
-    }
-    return this.processEvent(syntheticEvent)
+    return this.processEvent({
+      type: "HOLD", magnitude: 0.1, walletScore: 50, timestamp: Date.now(),
+    })
   }
 
-  getNeuralWeights() {
-    return this.net.getWeightSnapshot()
-  }
+  getNeuralWeights() { return this.net.getWeightSnapshot() }
 }

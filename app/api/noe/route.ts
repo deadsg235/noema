@@ -41,11 +41,8 @@ function buildUIState(eng: NoeEngine, cluster: string, milestone: string | null)
   const mood = computeMoodFromState(engineState)
   const expression = NoePersonality.getExpression(engineState)
   const memoryNarrative = eng.memory.recallNarrative()
-  const summary = eng.memory.summarize()
 
-  // Ambient message from personality
-  const ambientCluster = cluster as Parameters<typeof NoePersonality["getAmbientMessage"]>[0]
-  expression.text = NoePersonality.getAmbientMessage(ambientCluster as any) 
+  expression.text = NoePersonality.getAmbientMessage(cluster as any)
 
   return {
     mood,
@@ -62,6 +59,7 @@ function buildUIState(eng: NoeEngine, cluster: string, milestone: string | null)
     cluster,
     milestoneTriggered: milestone,
     memoryNarrative,
+    dqnDecision: eng.getDQNDecision(),
   }
 }
 

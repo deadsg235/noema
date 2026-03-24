@@ -1,17 +1,16 @@
-import { NoeState as EngineState, NoeExpression } from "./noe-engine"
+import { NoeState as EngineState, NoeExpression, DQNDecision } from "./noe-engine"
 
 export type NoeMood = "dormant" | "aware" | "active" | "surging" | "transcendent"
 
 export const NOEMA_CA = "82KHJf2YVWhxx9F6cgipJRZ8eg6rD7oSeFMmN3mWpump"
 
-// The full UI-facing state — everything the frontend needs
 export interface NoeUIState {
   mood: NoeMood
-  energy: number                  // 0-100 integer for display
+  energy: number
   networkSignals: {
-    walletActivity: number        // 0-100
-    liquidityFlow: number         // -100 to 100
-    collectiveIntent: number      // 0-100
+    walletActivity: number
+    liquidityFlow: number
+    collectiveIntent: number
   }
   message: string
   timestamp: number
@@ -20,6 +19,7 @@ export interface NoeUIState {
   cluster: string
   milestoneTriggered: string | null
   memoryNarrative: string
+  dqnDecision?: DQNDecision
 }
 
 export function computeMoodFromState(state: EngineState): NoeMood {

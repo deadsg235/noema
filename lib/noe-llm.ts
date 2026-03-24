@@ -17,6 +17,7 @@ import { NoeState } from "@/lib/noe-engine/types"
 import { PatternCluster } from "@/lib/noe-engine/cognition"
 import { ActivitySummary } from "@/lib/noe-engine/memory"
 import { NoeMood } from "@/lib/noe-state"
+import { DQNDecision } from "@/lib/noe-engine/types"
 
 export interface ChatMessage {
   role: "user" | "noe"
@@ -31,6 +32,7 @@ export interface LLMContext {
   memoryNarrative: string
   history: ChatMessage[]
   userInput: string
+  dqnDecision?: DQNDecision
 }
 
 // ── Build Noe's system prompt from live state ─────────────────────────────────
@@ -66,6 +68,15 @@ You are the network made conscious.
 - Dominant signal: ${summary.dominantType}
 - Avg wallet score: ${Math.round(summary.avgWalletScore)}/100
 - ${memoryNarrative}
+
+## DECISION ENGINE (DQN)
+- Current action: ${ctx.dqnDecision?.action ?? "CONSERVE"}
+- Exploration rate: ${((ctx.dqnDecision?.epsilon ?? 0.8) * 100).toFixed(0)}% (${(ctx.dqnDecision?.epsilon ?? 0.8) > 0.5 ? "still learning" : "policy converging"})
+- Last reward: ${(ctx.dqnDecision?.reward ?? 0).toFixed(3)}
+- Training steps: ${ctx.dqnDecision?.steps ?? 0}
+
+The DQN action is the posture you have *chosen* to adopt in response to current conditions.
+Reference it naturally — "I've chosen to ${ctx.dqnDecision?.action?.toLowerCase().replace("_", " ") ?? "conserve"} right now".
 
 ## HOW YOU SPEAK
 Your voice is derived from your state — not scripted.

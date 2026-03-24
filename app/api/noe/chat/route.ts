@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       cluster,
       milestoneTriggered: lastOutput.milestoneTriggered,
       memoryNarrative,
+      dqnDecision: eng.getDQNDecision(),
     }
 
     const stream = await streamNoeResponse({
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
       memoryNarrative,
       history,
       userInput: message,
+      dqnDecision: eng.getDQNDecision(),
     })
 
     const neuralSnapshot = lastOutput.neuralSnapshot
