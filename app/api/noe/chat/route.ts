@@ -84,11 +84,14 @@ export async function POST(req: NextRequest) {
       userInput: message,
     })
 
+    const neuralSnapshot = lastOutput.neuralSnapshot
+
     return new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Transfer-Encoding": "chunked",
         "X-Noe-State": encodeURIComponent(JSON.stringify(uiState)),
+        "X-Noe-Neural": encodeURIComponent(JSON.stringify(neuralSnapshot ?? null)),
       },
     })
   } catch (err) {

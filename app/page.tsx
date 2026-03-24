@@ -10,6 +10,7 @@ import NoeImage from "@/components/NoeImage"
 import WalletButton from "@/components/WalletButton"
 import WalletPanel from "@/components/WalletPanel"
 import { MOOD_COLORS, MOOD_ACCENT, NOEMA_CA, type NoeUIState } from "@/lib/noe-state"
+import { NeuralNetSnapshot } from "@/lib/noe-engine/neural"
 
 function CABar({ accent }: { accent: string }) {
   const [copied, setCopied] = useState(false)
@@ -65,6 +66,7 @@ const BOOT_STATE: NoeUIState = {
 
 export default function Home() {
   const [state, setState] = useState<NoeUIState>(BOOT_STATE)
+  const [neuralSnap, setNeuralSnap] = useState<NeuralNetSnapshot | undefined>()
   const [booted, setBooted] = useState(false)
   const [milestone, setMilestone] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"signals" | "wallet" | "image">("signals")
@@ -227,6 +229,8 @@ export default function Home() {
             energy={state.energy}
             message={state.message}
             expression={state.expression}
+            engineState={state.engineState}
+            neuralSnapshot={neuralSnap}
           />
         </motion.div>
 
@@ -243,7 +247,7 @@ export default function Home() {
               {state.timestamp ? new Date(state.timestamp).toLocaleTimeString() : "--:--:--"}
             </span>
           </div>
-          <NoeChat state={state} onStateUpdate={setState} />
+          <NoeChat state={state} onStateUpdate={setState} onNeuralUpdate={setNeuralSnap} />
         </motion.div>
 
         {/* ── Far right: Image panel ── */}
