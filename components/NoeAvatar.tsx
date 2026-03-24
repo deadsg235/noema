@@ -42,6 +42,7 @@ function NoeCanvas({
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
+    const c = ctx
     const W = canvas.width, H = canvas.height
     const cx = W / 2, cy = H / 2 - 10
     const FOV = 320
@@ -149,20 +150,19 @@ function NoeCanvas({
       a: [number, number, number], b: [number, number, number],
       alpha: number, width: number
     ) {
-      if (!ctx) return
-      ctx.beginPath()
-      ctx.moveTo(a[0], a[1])
-      ctx.lineTo(b[0], b[1])
-      ctx.strokeStyle = ac(alpha * Math.min(a[2], b[2]) * 0.9)
-      ctx.lineWidth = width
-      ctx.stroke()
+      c.beginPath()
+      c.moveTo(a[0], a[1])
+      c.lineTo(b[0], b[1])
+      c.strokeStyle = ac(alpha * Math.min(a[2], b[2]) * 0.9)
+      c.lineWidth = width
+      c.stroke()
     }
 
     function draw() {
       const t = tRef.current
       tRef.current += 0.012
 
-      ctx.clearRect(0, 0, W, H)
+      c.clearRect(0, 0, W, H)
 
       // Subtle idle head rotation
       const rotYAngle = Math.sin(t * 0.3) * 0.12 + (energyFlow === "fragmented" ? (Math.random() - 0.5) * 0.08 : 0)
@@ -173,11 +173,11 @@ function NoeCanvas({
       const gy = glitchIntensity > 0.3 ? (Math.random() - 0.5) * glitchIntensity * 4 : 0
 
       // ── Background depth glow ──
-      const grad = ctx.createRadialGradient(cx, cy - 20, 0, cx, cy - 20, 160)
+      const grad = c.createRadialGradient(cx, cy - 20, 0, cx, cy - 20, 160)
       grad.addColorStop(0, ac(0.06))
       grad.addColorStop(1, "transparent")
-      ctx.fillStyle = grad
-      ctx.fillRect(0, 0, W, H)
+      c.fillStyle = grad
+      c.fillRect(0, 0, W, H)
 
       // ── Hair ──
       for (const s of strands) {
@@ -192,26 +192,24 @@ function NoeCanvas({
             s.baseZ - frac * 8,
           ]
           const p = rotX(rotY(rawP, rotYAngle), rotXAngle)
-          const [px, py, ps] = project(p, FOV, cx + gx, cy + gy)
-          pts.push([px, py])
+          const proj = project(p, FOV, cx + gx, cy + gy)
+          pts.push([proj[0], proj[1]])
         }
-        // Only draw strands that are "in front" (not clipped behind face)
         const alpha = 0.15 + s.t * 0.45
-        ctx.beginPath()
-        ctx.moveTo(pts[0][0], pts[0][1])
+        c.beginPath()
+        c.moveTo(pts[0][0], pts[0][1])
         for (let j = 1; j < pts.length; j++) {
           const mx = (pts[j - 1][0] + pts[j][0]) / 2
           const my = (pts[j - 1][1] + pts[j][1]) / 2
-          ctx.quadraticCurveTo(pts[j - 1][0], pts[j - 1][1], mx, my)
+          c.quadraticCurveTo(pts[j - 1][0], pts[j - 1][1], mx, my)
         }
-        // White hair with accent tint at tips
-        const hairGrad = ctx.createLinearGradient(pts[0][0], pts[0][1], pts[pts.length - 1][0], pts[pts.length - 1][1])
+        const hairGrad = c.createLinearGradient(pts[0][0], pts[0][1], pts[pts.length - 1][0], pts[pts.length - 1][1])
         hairGrad.addColorStop(0, `rgba(240,240,255,${alpha * 0.9})`)
         hairGrad.addColorStop(0.5, `rgba(220,220,245,${alpha * 0.6})`)
         hairGrad.addColorStop(1, ac(alpha * 0.5))
-        ctx.strokeStyle = hairGrad
-        ctx.lineWidth = 0.6 + s.t * 0.4
-        ctx.stroke()
+        c.strokeStyle = hairGrad
+        c.lineWidth = 0.6 + s.t * 0.4
+        c.stroke()
       }
 
       // ── Face wireframe ──
@@ -220,10 +218,9 @@ function NoeCanvas({
         return project(p, FOV, cx + gx, cy + gy)
       })
 
-      ctx.lineCap = "round"
+      c.lineCap = "round"
       for (const [ai, bi, baseAlpha] of faceEdges) {
         const a = projected[ai], b = projected[bi]
-        // Depth-based alpha — closer = brighter
         const depthAlpha = baseAlpha * ((a[2] + b[2]) / 2) * eyeBrightness
         drawEdge(a, b, depthAlpha, 0.7)
       }
@@ -234,65 +231,59 @@ function NoeCanvas({
         const [ex, ey, es] = project(ep, FOV, cx + gx, cy + gy)
         const eyeR2 = 7 * es
 
-        // Outer halo
-        const halo = ctx.createRadialGradient(ex, ey, 0, ex, ey, eyeR2 * 3)
+        const halo = c.createRadialGradient(ex, ey, 0, ex, ey, eyeR2 * 3)
         halo.addColorStop(0, ac(0.5 * eyeBrightness))
         halo.addColorStop(0.4, ac(0.2 * eyeBrightness))
         halo.addColorStop(1, "transparent")
-        ctx.fillStyle = halo
-        ctx.beginPath()
-        ctx.arc(ex, ey, eyeR2 * 3, 0, Math.PI * 2)
-        ctx.fill()
+        c.fillStyle = halo
+        c.beginPath()
+        c.arc(ex, ey, eyeR2 * 3, 0, Math.PI * 2)
+        c.fill()
 
-        // Iris ring
-        ctx.beginPath()
-        ctx.arc(ex, ey, eyeR2, 0, Math.PI * 2)
-        ctx.strokeStyle = ac(0.9 * eyeBrightness)
-        ctx.lineWidth = 1.2
-        ctx.stroke()
+        c.beginPath()
+        c.arc(ex, ey, eyeR2, 0, Math.PI * 2)
+        c.strokeStyle = ac(0.9 * eyeBrightness)
+        c.lineWidth = 1.2
+        c.stroke()
 
-        // Inner dot
-        ctx.beginPath()
-        ctx.arc(ex, ey, eyeR2 * 0.35, 0, Math.PI * 2)
-        ctx.fillStyle = ac(eyeBrightness)
-        ctx.fill()
+        c.beginPath()
+        c.arc(ex, ey, eyeR2 * 0.35, 0, Math.PI * 2)
+        c.fillStyle = ac(eyeBrightness)
+        c.fill()
 
-        // Pupil cross — sci-fi detail
-        ctx.strokeStyle = ac(0.6 * eyeBrightness)
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.moveTo(ex - eyeR2 * 1.4, ey); ctx.lineTo(ex + eyeR2 * 1.4, ey)
-        ctx.moveTo(ex, ey - eyeR2 * 1.4); ctx.lineTo(ex, ey + eyeR2 * 1.4)
-        ctx.stroke()
+        c.strokeStyle = ac(0.6 * eyeBrightness)
+        c.lineWidth = 0.5
+        c.beginPath()
+        c.moveTo(ex - eyeR2 * 1.4, ey); c.lineTo(ex + eyeR2 * 1.4, ey)
+        c.moveTo(ex, ey - eyeR2 * 1.4); c.lineTo(ex, ey + eyeR2 * 1.4)
+        c.stroke()
       }
 
       // ── Scan line ──
       scanY += 1.2
       if (scanY > 80) scanY = -120
-      const scanWorldY = scanY
-      // Project scan line as a horizontal streak across face
       const scanAlpha = 0.12 + eyeBrightness * 0.08
-      const scanGrad = ctx.createLinearGradient(cx - 80, 0, cx + 80, 0)
+      const scanGrad = c.createLinearGradient(cx - 80, 0, cx + 80, 0)
       scanGrad.addColorStop(0, "transparent")
       scanGrad.addColorStop(0.3, ac(scanAlpha))
       scanGrad.addColorStop(0.7, ac(scanAlpha))
       scanGrad.addColorStop(1, "transparent")
-      ctx.fillStyle = scanGrad
-      ctx.fillRect(cx - 80, cy + scanWorldY, 160, 1.5)
+      c.fillStyle = scanGrad
+      c.fillRect(cx - 80, cy + scanY, 160, 1.5)
 
       // ── Glitch RGB split ──
       if (glitchIntensity > 0.4 && Math.random() < glitchIntensity * 0.3) {
         const sliceY = cy - 80 + Math.random() * 160
         const sliceH = 2 + Math.random() * 6
         const shift = (Math.random() - 0.5) * 12
-        ctx.save()
-        ctx.globalCompositeOperation = "screen"
-        ctx.globalAlpha = 0.4
-        ctx.drawImage(canvas, shift, 0, W, H, 0, 0, W, H)
-        ctx.globalAlpha = 0.2
-        ctx.fillStyle = `rgba(255,0,80,0.3)`
-        ctx.fillRect(cx - 60, sliceY, 120, sliceH)
-        ctx.restore()
+        c.save()
+        c.globalCompositeOperation = "screen"
+        c.globalAlpha = 0.4
+        c.drawImage(canvas, shift, 0, W, H, 0, 0, W, H)
+        c.globalAlpha = 0.2
+        c.fillStyle = `rgba(255,0,80,0.3)`
+        c.fillRect(cx - 60, sliceY, 120, sliceH)
+        c.restore()
       }
 
       // ── Neck / collar edge ──
@@ -301,17 +292,17 @@ function NoeCanvas({
         const p = rotX(rotY(v, rotYAngle), rotXAngle)
         return project(p, FOV, cx + gx, cy + gy)
       })
-      ctx.beginPath()
-      ctx.moveTo(np[0][0], np[0][1])
-      ctx.lineTo(np[1][0], np[1][1])
-      ctx.strokeStyle = ac(0.25)
-      ctx.lineWidth = 0.8
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.moveTo(np[0][0], np[0][1]); ctx.lineTo(np[3][0], np[3][1])
-      ctx.moveTo(np[1][0], np[1][1]); ctx.lineTo(np[2][0], np[2][1])
-      ctx.strokeStyle = ac(0.15)
-      ctx.stroke()
+      c.beginPath()
+      c.moveTo(np[0][0], np[0][1])
+      c.lineTo(np[1][0], np[1][1])
+      c.strokeStyle = ac(0.25)
+      c.lineWidth = 0.8
+      c.stroke()
+      c.beginPath()
+      c.moveTo(np[0][0], np[0][1]); c.lineTo(np[3][0], np[3][1])
+      c.moveTo(np[1][0], np[1][1]); c.lineTo(np[2][0], np[2][1])
+      c.strokeStyle = ac(0.15)
+      c.stroke()
 
       animRef.current = requestAnimationFrame(draw)
     }
