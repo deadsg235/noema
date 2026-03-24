@@ -6,7 +6,7 @@ import NoeAvatar from "@/components/NoeAvatar"
 import NoeChat from "@/components/NoeChat"
 import NetworkPulse from "@/components/NetworkPulse"
 import NoeStateMatrix from "@/components/NoeStateMatrix"
-import NoeImage from "@/components/NoeImage"
+import NoeVisualizer from "@/components/NoeVisualizer"
 import WalletButton from "@/components/WalletButton"
 import WalletPanel from "@/components/WalletPanel"
 import { MOOD_COLORS, MOOD_ACCENT, NOEMA_CA, type NoeUIState } from "@/lib/noe-state"
@@ -250,21 +250,28 @@ export default function Home() {
           <NoeChat state={state} onStateUpdate={setState} onNeuralUpdate={setNeuralSnap} />
         </motion.div>
 
-        {/* ── Far right: Image panel ── */}
+        {/* ── Far right: Noe Visualized ── */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: booted ? 1 : 0, x: 0 }}
           transition={{ duration: 0.6, delay: 0.5 }}
           className={`xl:col-span-1 flex flex-col gap-3 ${activeTab === "image" ? "flex" : "hidden xl:flex"}`}
         >
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
-            <div className="flex items-center justify-between mb-3">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] overflow-hidden" style={{ minHeight: 380 }}>
+            <div className="px-4 pt-3 pb-2 border-b border-white/5 flex items-center justify-between">
               <span className="font-mono text-xs text-white/30 uppercase tracking-widest">Noe Visualized</span>
-              <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: accent }}>
-                {state.cluster.replace("_", " ")}
-              </span>
+              <motion.span
+                className="font-mono text-[10px] uppercase tracking-widest"
+                style={{ color: accent }}
+                animate={{ opacity: [1, 0.4, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                LIVE
+              </motion.span>
             </div>
-            <NoeImage state={state} autoRefreshMs={0} />
+            <div className="w-full" style={{ height: "calc(100% - 40px)", minHeight: 340 }}>
+              <NoeVisualizer state={state} neuralSnapshot={neuralSnap} />
+            </div>
           </div>
         </motion.div>
       </div>
