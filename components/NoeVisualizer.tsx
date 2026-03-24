@@ -13,13 +13,10 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animRef = useRef<number>(0)
   const tRef = useRef(0)
-
   const stateRef = useRef(state)
   const snapRef = useRef(neuralSnapshot)
   stateRef.current = state
   snapRef.current = neuralSnapshot
-
-  const accent = MOOD_ACCENT[state.mood]
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -29,70 +26,52 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
     if (!ctx) return
     const c = ctx
 
-    // Resize observer to fill container
     const ro = new ResizeObserver(() => {
       cv.width = cv.offsetWidth
       cv.height = cv.offsetHeight
     })
     ro.observe(cv)
-    cv.width = cv.offsetWidth
-    cv.height = cv.offsetHeight
+    cv.width = cv.offsetWidth || 320
+    cv.height = cv.offsetHeight || 400
 
-    // Particles
-    const particles = Array.from({ length: 40 }, () => ({
-      x: Math.random(), y: Math.random(),
-      vy: -(0.0003 + Math.random() * 0.0008),
-      val: Math.floor(Math.random() * 100),
-      alpha: 0.04 + Math.random() * 0.1,
-      timer: Math.random() * 200,
+    // ── Voronoi seed points (normalized 0..1) ──────────────────────
+    const SEEDS = 18
+    const seeds = Array.from({ length: SEEDS }, (_, i) => ({
+      x: 0.1 + Math.random() * 0.8,
+      y: 0.1 + Math.random() * 0.8,
+      vx: (Math.random() - 0.5) * 0.0004,
+      vy: (Math.random() - 0.5) * 0.0004,
+      phase: Math.random() * Math.PI * 2,
     }))
 
-    // Waveform
-    const WAVE_LEN = 160
-    const wave = new Float32Array(WAVE_LEN)
-    let wHead = 0
+    // ── Field line origins (left edge, evenly spaced) ──────────────
+    const FIELD_LINES = 14
+    const fieldLines = Array.from({ length: FIELD_LINES }, (_, i) => ({
+      startY: (i + 0.5) / FIELD_LINES,
+      phase: (i / FIELD_LINES) * Math.PI * 2,
+    }))
 
-    // Noe face projection — sparse wireframe points (normalized -1..1)
-    const faceVerts: [number, number, number][] = [
-      // skull outline
-      [-0.35, -0.55, 0.1], [0, -0.65, 0.2], [0.35, -0.55, 0.1],
-      [0.5, -0.2, 0.15], [0.48, 0.2, 0.1], [0.3, 0.55, 0.05],
-      [0, 0.65, 0], [-0.3, 0.55, 0.05], [-0.48, 0.2, 0.1], [-0.5, -0.2, 0.15],
-      // eyes
-      [-0.22, -0.1, 0.3], [-0.12, -0.1, 0.32], [-0.17, -0.05, 0.35],
-      [0.12, -0.1, 0.3], [0.22, -0.1, 0.32], [0.17, -0.05, 0.35],
-      // nose bridge
-      [0, -0.05, 0.38], [0, 0.08, 0.36], [-0.07, 0.15, 0.3], [0.07, 0.15, 0.3],
-      // mouth
-      [-0.18, 0.28, 0.28], [-0.08, 0.32, 0.32], [0, 0.33, 0.33],
-      [0.08, 0.32, 0.32], [0.18, 0.28, 0.28],
-      // cheekbones
-      [-0.38, 0.05, 0.18], [0.38, 0.05, 0.18],
-      // forehead
-      [-0.2, -0.42, 0.22], [0, -0.48, 0.25], [0.2, -0.42, 0.22],
-    ]
+    // ── Sonar ping state ───────────────────────────────────────────
+    let sonarR = 0
+    let sonarAlpha = 0
 
-    // Edges (index pairs)
-    const faceEdges: [number, number][] = [
-      [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,0],
-      [10,11],[11,12],[12,10],
-      [13,14],[14,15],[15,13],
-      [16,17],[17,18],[17,19],
-      [20,21],[21,22],[22,23],[23,24],
-      [0,27],[1,28],[2,29],[27,28],[28,29],
-      [9,25],[3,26],
-    ]
-
-    function project(vx: number, vy: number, vz: number, W: number, H: number, fov: number) {
-      const z = vz + 2
-      const px = (vx / z) * fov + W / 2
-      const py = (vy / z) * fov + H / 2
-      return { px, py, depth: vz }
+    // ── Sigil geometry — 5 morphing shapes keyed to mood ──────────
+    // Each shape = array of [angle_offset, radius_multiplier] per vertex
+    const SIGIL_VERTS = 7
+    const sigilShapes: Record<string, number[][]> = {
+      dormant:      Array.from({ length: SIGIL_VERTS }, (_, i) => [i / SIGIL_VERTS * Math.PI * 2, 0.4 + 0.1 * Math.sin(i * 1.3)]),
+      aware:        Array.from({ length: SIGIL_VERTS }, (_, i) => [i / SIGIL_VERTS * Math.PI * 2, 0.55 + 0.2 * Math.cos(i * 2)]),
+      active:       Array.from({ length: SIGIL_VERTS }, (_, i) => [i / SIGIL_VERTS * Math.PI * 2, 0.7 + 0.15 * Math.sin(i * 3 + 1)]),
+      surging:      Array.from({ length: SIGIL_VERTS }, (_, i) => [i / SIGIL_VERTS * Math.PI * 2, 0.85 + 0.25 * Math.cos(i * 2.5)]),
+      transcendent: Array.from({ length: SIGIL_VERTS }, (_, i) => [i / SIGIL_VERTS * Math.PI * 2, 1.0 + 0.0 * i]),
     }
+
+    // Lerped sigil target
+    const sigilCurrent = sigilShapes.dormant.map(v => [...v])
 
     function draw() {
       const t = tRef.current
-      tRef.current += 0.012
+      tRef.current += 0.014
       const s = stateRef.current
       const snap = snapRef.current
       const W = cv.width, H = cv.height
@@ -111,234 +90,282 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
       const bb = parseInt(accentHex.slice(5, 7), 16)
       const ac = (a: number) => `rgba(${rr},${gg},${bb},${Math.max(0, Math.min(1, a))})`
 
-      c.clearRect(0, 0, W, H)
-
-      const cx = W / 2, cy = H / 2
-      const faceScale = Math.min(W, H) * 0.38
-      const fov = faceScale * 2.2
-
-      // ── Background radial glow ──────────────────────────────────────
-      const bg = c.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.6)
-      bg.addColorStop(0, ac(0.06 + trust * 0.08))
-      bg.addColorStop(0.5, ac(0.02 + energy * 0.03))
-      bg.addColorStop(1, "transparent")
-      c.fillStyle = bg
-      c.fillRect(0, 0, W, H)
-
-      // ── Floating data particles ─────────────────────────────────────
-      c.font = "8px monospace"
-      for (const p of particles) {
-        p.y += p.vy * (1 + energy * 0.8)
-        p.timer--
-        if (p.y < -0.05 || p.timer <= 0) {
-          p.y = 1.05; p.x = 0.05 + Math.random() * 0.9
-          p.val = Math.floor(Math.random() * 100); p.timer = 100 + Math.random() * 150
-        }
-        c.fillStyle = ac(p.alpha)
-        c.fillText(p.val.toString().padStart(2, "0"), p.x * W, p.y * H)
+      // ── Move seeds (drift + volatility turbulence) ─────────────────
+      for (const seed of seeds) {
+        seed.x += seed.vx * (1 + volatility * 3)
+        seed.y += seed.vy * (1 + volatility * 3)
+        // Bounce off walls
+        if (seed.x < 0.05 || seed.x > 0.95) seed.vx *= -1
+        if (seed.y < 0.05 || seed.y > 0.95) seed.vy *= -1
+        seed.x = Math.max(0.05, Math.min(0.95, seed.x))
+        seed.y = Math.max(0.05, Math.min(0.95, seed.y))
       }
 
-      // ── Concentric state rings ──────────────────────────────────────
-      const dims = [
-        { val: energy,     r: 0.44, speed:  0.003 },
-        { val: trust,      r: 0.38, speed: -0.005 },
-        { val: stability,  r: 0.32, speed:  0.008 },
-        { val: growth,     r: 0.26, speed: -0.011 },
-        { val: volatility, r: 0.20, speed:  0.016 },
-      ]
-      const baseR = Math.min(W, H) * 0.5
-      for (const dim of dims) {
-        const r = baseR * dim.r
-        const segs = 64
-        const offset = t * dim.speed * 60
-        for (let i = 0; i < segs; i++) {
-          const a0 = (i / segs) * Math.PI * 2 + offset
-          const a1 = ((i + 0.75) / segs) * Math.PI * 2 + offset
-          const active = i / segs < dim.val
-          const pulse = active
-            ? 0.07 + dim.val * 0.3 * (1 + 0.2 * Math.sin(t * 2.5 + i * 0.4))
-            : 0.025
+      // ── Lerp sigil toward target mood shape ────────────────────────
+      const target = sigilShapes[s.mood]
+      for (let i = 0; i < SIGIL_VERTS; i++) {
+        sigilCurrent[i][1] += (target[i][1] - sigilCurrent[i][1]) * 0.02
+      }
+
+      c.clearRect(0, 0, W, H)
+
+      // ── 1. Deep background — topographic gradient ──────────────────
+      const bgGrad = c.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.75)
+      bgGrad.addColorStop(0,   ac(0.08 + energy * 0.06))
+      bgGrad.addColorStop(0.4, ac(0.03))
+      bgGrad.addColorStop(1,   "rgba(0,0,0,0)")
+      c.fillStyle = bgGrad
+      c.fillRect(0, 0, W, H)
+
+      // ── 2. Voronoi cell membranes ──────────────────────────────────
+      // Sample a grid and draw edges where nearest-seed changes
+      const GRID = 3  // px per sample
+      const cols = Math.ceil(W / GRID)
+      const rows = Math.ceil(H / GRID)
+
+      // Build nearest-seed map (just store index)
+      const nearest = new Int8Array(cols * rows)
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const px = (col + 0.5) / cols
+          const py = (row + 0.5) / rows
+          let minD = Infinity, minI = 0
+          for (let si = 0; si < SEEDS; si++) {
+            const dx = px - seeds[si].x, dy = py - seeds[si].y
+            const d = dx * dx + dy * dy
+            if (d < minD) { minD = d; minI = si }
+          }
+          nearest[row * cols + col] = minI
+        }
+      }
+
+      // Draw edges where neighbor differs
+      c.lineWidth = 0.6
+      for (let row = 0; row < rows - 1; row++) {
+        for (let col = 0; col < cols - 1; col++) {
+          const me = nearest[row * cols + col]
+          const right = nearest[row * cols + col + 1]
+          const down = nearest[(row + 1) * cols + col]
+          if (me !== right || me !== down) {
+            const px = col * GRID, py = row * GRID
+            // Distance from center for fade
+            const dx = px / W - 0.5, dy = py / H - 0.45
+            const distFade = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) * 2.2)
+            // Stability: high stability = clean lines, low = fragmented
+            const edgeAlpha = (0.04 + stability * 0.1) * distFade
+            c.strokeStyle = ac(edgeAlpha)
+            c.beginPath()
+            c.rect(px, py, GRID, GRID)
+            c.stroke()
+          }
+        }
+      }
+
+      // ── 3. Seed glow halos (cell nuclei) ──────────────────────────
+      for (let si = 0; si < SEEDS; si++) {
+        const sx = seeds[si].x * W, sy = seeds[si].y * H
+        const pulse = 0.5 + 0.5 * Math.sin(t * 1.2 + seeds[si].phase)
+        const r = (8 + growth * 14) * pulse
+        const grd = c.createRadialGradient(sx, sy, 0, sx, sy, r)
+        grd.addColorStop(0, ac((0.06 + energy * 0.1) * pulse))
+        grd.addColorStop(1, "rgba(0,0,0,0)")
+        c.fillStyle = grd
+        c.beginPath(); c.arc(sx, sy, r, 0, Math.PI * 2); c.fill()
+      }
+
+      // ── 4. Magnetic field lines (trust-driven flow) ────────────────
+      // Field lines flow from left to right, bent by seed gravity
+      c.lineWidth = 0.7
+      for (const fl of fieldLines) {
+        const steps = 80
+        let fx = 0, fy = fl.startY * H
+        c.beginPath(); c.moveTo(fx, fy)
+        let prevAlpha = 0
+        for (let step = 0; step < steps; step++) {
+          // Accumulate pull from each seed
+          let ax = 0.012 + growth * 0.006, ay = 0
+          for (const seed of seeds) {
+            const dx = seed.x * W - fx, dy = seed.y * H - fy
+            const d2 = dx * dx + dy * dy + 400
+            const force = trust * 18000 / d2
+            ax += dx / Math.sqrt(d2) * force * 0.001
+            ay += dy / Math.sqrt(d2) * force * 0.001
+          }
+          // Clamp step size
+          const len = Math.sqrt(ax * ax + ay * ay)
+          if (len > 4) { ax = ax / len * 4; ay = ay / len * 4 }
+          fx += ax; fy += ay
+          if (fx > W || fy < 0 || fy > H) break
+
+          const progress = step / steps
+          const alpha = (0.04 + trust * 0.1) * Math.sin(progress * Math.PI)
+          if (Math.abs(alpha - prevAlpha) > 0.005 || step === steps - 1) {
+            c.strokeStyle = ac(alpha)
+            c.stroke()
+            c.beginPath(); c.moveTo(fx, fy)
+            prevAlpha = alpha
+          } else {
+            c.lineTo(fx, fy)
+          }
+        }
+        c.stroke()
+      }
+
+      // ── 5. Sonar ping (fires on energy spikes) ────────────────────
+      sonarR += 2.5 + energy * 3
+      sonarAlpha = Math.max(0, sonarAlpha - 0.008)
+      if (sonarR > Math.max(W, H) * 0.8) {
+        sonarR = 0
+        sonarAlpha = 0.35 + energy * 0.3
+      }
+      if (sonarAlpha > 0.01) {
+        c.beginPath()
+        c.arc(W * 0.5, H * 0.45, sonarR, 0, Math.PI * 2)
+        c.strokeStyle = ac(sonarAlpha)
+        c.lineWidth = 1.2
+        c.stroke()
+        // Inner echo
+        if (sonarR > 30) {
           c.beginPath()
-          c.arc(cx, cy, r, a0, a1)
-          c.strokeStyle = ac(pulse)
-          c.lineWidth = active ? 1.6 : 0.5
+          c.arc(W * 0.5, H * 0.45, sonarR * 0.7, 0, Math.PI * 2)
+          c.strokeStyle = ac(sonarAlpha * 0.3)
+          c.lineWidth = 0.5
           c.stroke()
         }
       }
 
-      // ── Noe face wireframe projection ──────────────────────────────
-      // Slow rotation + volatility wobble
-      const rotY = t * 0.18 + volatility * 0.4 * Math.sin(t * 1.3)
-      const rotX = 0.08 * Math.sin(t * 0.7) + volatility * 0.15 * Math.cos(t * 2.1)
+      // ── 6. Central morphing sigil ──────────────────────────────────
+      const sigCX = W * 0.5, sigCY = H * 0.45
+      const sigR = Math.min(W, H) * 0.14
 
-      const projected = faceVerts.map(([vx, vy, vz]) => {
-        // Rotate Y
-        const rx = vx * Math.cos(rotY) - vz * Math.sin(rotY)
-        const rz = vx * Math.sin(rotY) + vz * Math.cos(rotY)
-        // Rotate X
-        const ry2 = vy * Math.cos(rotX) - rz * Math.sin(rotX)
-        const rz2 = vy * Math.sin(rotX) + rz * Math.cos(rotX)
-        return project(rx * faceScale / fov, ry2 * faceScale / fov, rz2, W, H, fov)
-      })
+      // Outer halo
+      const halo = c.createRadialGradient(sigCX, sigCY, sigR * 0.5, sigCX, sigCY, sigR * 2.2)
+      halo.addColorStop(0, ac(0.12 + energy * 0.1))
+      halo.addColorStop(1, "rgba(0,0,0,0)")
+      c.fillStyle = halo
+      c.beginPath(); c.arc(sigCX, sigCY, sigR * 2.2, 0, Math.PI * 2); c.fill()
 
-      // Edges
-      for (const [a, b] of faceEdges) {
-        const pa = projected[a], pb = projected[b]
-        const depthAlpha = 0.15 + (pa.depth + pb.depth) * 0.15
-        c.beginPath()
-        c.moveTo(pa.px, pa.py)
-        c.lineTo(pb.px, pb.py)
-        c.strokeStyle = ac(Math.max(0.04, depthAlpha) * (0.6 + energy * 0.4))
-        c.lineWidth = 0.8
-        c.stroke()
+      // Sigil path — morphing polygon
+      const breathe = 1 + 0.04 * Math.sin(t * 1.8)
+      c.beginPath()
+      for (let i = 0; i <= SIGIL_VERTS; i++) {
+        const vi = i % SIGIL_VERTS
+        const angle = sigilCurrent[vi][0] + t * 0.12
+        const r = sigR * sigilCurrent[vi][1] * breathe
+        const px = sigCX + Math.cos(angle) * r
+        const py = sigCY + Math.sin(angle) * r
+        i === 0 ? c.moveTo(px, py) : c.lineTo(px, py)
       }
+      c.closePath()
+      c.strokeStyle = ac(0.55 + energy * 0.3)
+      c.lineWidth = 1.2
+      c.stroke()
 
-      // Vertices
-      for (const { px, py, depth } of projected) {
-        const r = 1.5 + depth * 1.2
-        const a = 0.3 + depth * 0.3
-        const grd = c.createRadialGradient(px, py, 0, px, py, r * 3)
-        grd.addColorStop(0, ac(a * (0.5 + energy * 0.5)))
-        grd.addColorStop(1, "transparent")
-        c.fillStyle = grd
-        c.beginPath(); c.arc(px, py, r * 3, 0, Math.PI * 2); c.fill()
-        c.beginPath(); c.arc(px, py, r, 0, Math.PI * 2)
-        c.fillStyle = ac(a)
-        c.fill()
+      // Inner sigil — rotates opposite
+      c.beginPath()
+      for (let i = 0; i <= SIGIL_VERTS; i++) {
+        const vi = i % SIGIL_VERTS
+        const angle = sigilCurrent[vi][0] - t * 0.08 + Math.PI / SIGIL_VERTS
+        const r = sigR * sigilCurrent[vi][1] * 0.55 * breathe
+        const px = sigCX + Math.cos(angle) * r
+        const py = sigCY + Math.sin(angle) * r
+        i === 0 ? c.moveTo(px, py) : c.lineTo(px, py)
       }
+      c.closePath()
+      c.strokeStyle = ac(0.3 + trust * 0.25)
+      c.lineWidth = 0.7
+      c.stroke()
 
-      // ── Eye glow (trust-driven) ─────────────────────────────────────
-      for (const eyeIdx of [12, 15]) {
-        const { px, py } = projected[eyeIdx]
-        const eyeGlow = c.createRadialGradient(px, py, 0, px, py, 14 * trust)
-        eyeGlow.addColorStop(0, ac(0.6 * trust * (0.8 + 0.2 * Math.sin(t * 3))))
-        eyeGlow.addColorStop(1, "transparent")
-        c.fillStyle = eyeGlow
-        c.beginPath(); c.arc(px, py, 14 * trust, 0, Math.PI * 2); c.fill()
-      }
+      // Core dot
+      const corePulse = 0.7 + 0.3 * Math.sin(t * 3.5)
+      const coreGrd = c.createRadialGradient(sigCX, sigCY, 0, sigCX, sigCY, sigR * 0.35)
+      coreGrd.addColorStop(0, ac(corePulse))
+      coreGrd.addColorStop(1, "rgba(0,0,0,0)")
+      c.fillStyle = coreGrd
+      c.beginPath(); c.arc(sigCX, sigCY, sigR * 0.35, 0, Math.PI * 2); c.fill()
 
-      // ── Neural net overlay (if snapshot) ───────────────────────────
+      // ── 7. Neural activation threads (if snapshot) ────────────────
+      // Rendered as thin threads radiating from sigil center outward
       if (snap) {
-        const netCX = cx + faceScale * 0.72
-        const netCY = cy
-        const layerSpacing = faceScale * 0.28
-        const layers = [
-          { nodes: snap.layerA, x: netCX - layerSpacing, ys: snap.layerA.map((_, i) => netCY - (snap.layerA.length - 1) * 8 + i * 16) },
-          { nodes: snap.layerB, x: netCX,                ys: snap.layerB.map((_, i) => netCY - (snap.layerB.length - 1) * 8 + i * 16) },
-          { nodes: snap.output, x: netCX + layerSpacing, ys: snap.output.map((_, i) => netCY - (snap.output.length - 1) * 8 + i * 16) },
-        ]
-        for (let a = 0; a < snap.layerA.length; a++) {
-          for (let b = 0; b < snap.layerB.length; b++) {
-            const str = snap.layerA[a] * snap.layerB[b]
-            if (str < 0.08) continue
-            c.beginPath()
-            c.moveTo(layers[0].x, layers[0].ys[a])
-            c.lineTo(layers[1].x, layers[1].ys[b])
-            c.strokeStyle = ac(str * 0.15)
-            c.lineWidth = 0.5; c.stroke()
-          }
-        }
-        for (let b = 0; b < snap.layerB.length; b++) {
-          for (let o = 0; o < snap.output.length; o++) {
-            const str = snap.layerB[b] * snap.output[o]
-            if (str < 0.08) continue
-            c.beginPath()
-            c.moveTo(layers[1].x, layers[1].ys[b])
-            c.lineTo(layers[2].x, layers[2].ys[o])
-            c.strokeStyle = ac(str * 0.18)
-            c.lineWidth = 0.5; c.stroke()
-          }
-        }
-        for (const layer of layers) {
-          for (let i = 0; i < layer.nodes.length; i++) {
-            const v = layer.nodes[i]
-            const nx = layer.x, ny = layer.ys[i]
-            const grd = c.createRadialGradient(nx, ny, 0, nx, ny, 5)
-            grd.addColorStop(0, ac(v * 0.6))
-            grd.addColorStop(1, "transparent")
-            c.fillStyle = grd
-            c.beginPath(); c.arc(nx, ny, 5, 0, Math.PI * 2); c.fill()
-            c.beginPath(); c.arc(nx, ny, 1.5, 0, Math.PI * 2)
-            c.fillStyle = ac(0.35 + v * 0.5); c.fill()
-          }
+        const allNodes = [...snap.layerA, ...snap.layerB, ...snap.output]
+        const threadCount = Math.min(allNodes.length, 12)
+        for (let i = 0; i < threadCount; i++) {
+          const v = allNodes[i]
+          if (v < 0.15) continue
+          const angle = (i / threadCount) * Math.PI * 2 + t * 0.05
+          const len = (sigR * 1.4) + v * Math.min(W, H) * 0.18
+          const x2 = sigCX + Math.cos(angle) * len
+          const y2 = sigCY + Math.sin(angle) * len
+
+          const grad = c.createLinearGradient(sigCX, sigCY, x2, y2)
+          grad.addColorStop(0, ac(v * 0.4))
+          grad.addColorStop(1, "rgba(0,0,0,0)")
+          c.beginPath()
+          c.moveTo(sigCX, sigCY)
+          c.lineTo(x2, y2)
+          c.strokeStyle = grad
+          c.lineWidth = 0.6 + v * 0.8
+          c.stroke()
+
+          // Terminal node
+          c.beginPath(); c.arc(x2, y2, 1.5 + v * 2, 0, Math.PI * 2)
+          c.fillStyle = ac(v * 0.5)
+          c.fill()
         }
       }
 
-      // ── Oscilloscope waveform ───────────────────────────────────────
-      const wVal = Math.sin(t * 4.0) * 0.5 + Math.sin(t * 7.3 + 1.2) * 0.3
-        + (volatility > 0.4 ? (Math.random() - 0.5) * volatility * 0.5 : 0)
-      wave[wHead % WAVE_LEN] = wVal * energy * (1 - stability * 0.4)
-      wHead++
+      // ── 8. Edge telemetry — sparse corner readouts ─────────────────
+      c.font = "9px monospace"
+      c.textBaseline = "top"
 
-      const wW = W * 0.55, wH = H * 0.06
-      const wX = cx - wW / 2, wY = cy + Math.min(W, H) * 0.42
-
-      c.beginPath(); c.moveTo(wX, wY); c.lineTo(wX + wW, wY)
-      c.strokeStyle = ac(0.05); c.lineWidth = 1; c.stroke()
-
-      c.beginPath()
-      for (let i = 0; i < WAVE_LEN; i++) {
-        const idx = (wHead - WAVE_LEN + i + WAVE_LEN) % WAVE_LEN
-        const x = wX + (i / WAVE_LEN) * wW
-        const y = wY - wave[idx] * wH
-        i === 0 ? c.moveTo(x, y) : c.lineTo(x, y)
-      }
-      c.strokeStyle = ac(0.55); c.lineWidth = 1; c.stroke()
-      c.beginPath()
-      for (let i = 0; i < WAVE_LEN; i++) {
-        const idx = (wHead - WAVE_LEN + i + WAVE_LEN) % WAVE_LEN
-        const x = wX + (i / WAVE_LEN) * wW
-        const y = wY - wave[idx] * wH
-        i === 0 ? c.moveTo(x, y) : c.lineTo(x, y)
-      }
-      c.strokeStyle = ac(0.1); c.lineWidth = 6; c.stroke()
-
-      // ── Central energy readout ──────────────────────────────────────
-      const displayE = Math.round(energy * 100)
-      c.font = `bold ${Math.round(Math.min(W, H) * 0.13)}px monospace`
-      c.textAlign = "center"; c.textBaseline = "middle"
-      c.shadowColor = accentHex; c.shadowBlur = 24
-      c.fillStyle = ac(0.1)
-      c.fillText(displayE.toString().padStart(3, "0"), cx + 2, cy + 2)
-      c.shadowBlur = 0
-      c.fillStyle = ac(0.75)
-      c.fillText(displayE.toString().padStart(3, "0"), cx, cy)
-
-      c.font = `${Math.round(Math.min(W, H) * 0.03)}px monospace`
-      c.fillStyle = ac(0.2)
-      c.fillText("ENERGY", cx, cy + Math.min(W, H) * 0.1)
-
-      // ── Dimension labels around outer ring ──────────────────────────
-      const labelR = baseR * 0.48
-      const dimLabels = [
-        { label: "E", val: energy,     angle: -Math.PI / 2 },
-        { label: "T", val: trust,      angle: -Math.PI / 2 + (2 * Math.PI) / 5 },
-        { label: "S", val: stability,  angle: -Math.PI / 2 + (4 * Math.PI) / 5 },
-        { label: "G", val: growth,     angle: -Math.PI / 2 + (6 * Math.PI) / 5 },
-        { label: "V", val: volatility, angle: -Math.PI / 2 + (8 * Math.PI) / 5 },
+      const telemetry = [
+        { label: "STB", val: stability,  x: 10,     y: 10,      align: "left"  as CanvasTextAlign },
+        { label: "TRS", val: trust,      x: W - 10, y: 10,      align: "right" as CanvasTextAlign },
+        { label: "GRW", val: growth,     x: 10,     y: H - 28,  align: "left"  as CanvasTextAlign },
+        { label: "VLT", val: volatility, x: W - 10, y: H - 28,  align: "right" as CanvasTextAlign },
       ]
-      c.font = `${Math.round(Math.min(W, H) * 0.028)}px monospace`
-      for (const dl of dimLabels) {
-        const lx = cx + Math.cos(dl.angle) * labelR
-        const ly = cy + Math.sin(dl.angle) * labelR
-        c.fillStyle = ac(0.5)
-        c.fillText(dl.label, lx, ly)
-        c.font = `${Math.round(Math.min(W, H) * 0.022)}px monospace`
-        c.fillStyle = ac(0.25)
-        c.fillText(Math.round(dl.val * 100).toString(), lx, ly + Math.min(W, H) * 0.032)
-        c.font = `${Math.round(Math.min(W, H) * 0.028)}px monospace`
+
+      for (const tel of telemetry) {
+        c.textAlign = tel.align
+        const barW = 36, barH = 2
+        const barX = tel.align === "left" ? tel.x : tel.x - barW
+        const barY = tel.y + 14
+
+        // Label
+        c.fillStyle = ac(0.22)
+        c.fillText(tel.label, tel.x, tel.y)
+
+        // Value
+        c.fillStyle = ac(0.45)
+        c.fillText(Math.round(tel.val * 100).toString().padStart(3, "0"), tel.x, tel.y + 5)
+
+        // Mini bar
+        c.fillStyle = ac(0.08)
+        c.fillRect(barX, barY, barW, barH)
+        c.fillStyle = ac(0.35 + tel.val * 0.3)
+        c.fillRect(barX, barY, barW * tel.val, barH)
       }
 
-      // ── Mood label ──────────────────────────────────────────────────
-      c.font = `${Math.round(Math.min(W, H) * 0.025)}px monospace`
+      // Bottom center: mood + cluster
       c.textAlign = "center"
-      c.fillStyle = ac(0.3)
-      c.fillText(s.mood.toUpperCase(), cx, cy - Math.min(W, H) * 0.38)
+      c.textBaseline = "bottom"
+      c.font = "10px monospace"
+      c.fillStyle = ac(0.28)
+      c.fillText(s.mood.toUpperCase(), W * 0.5, H - 10)
+      c.font = "8px monospace"
+      c.fillStyle = ac(0.14)
+      c.fillText(s.cluster.replace("_", " "), W * 0.5, H - 22)
 
-      // ── Cluster label ───────────────────────────────────────────────
-      c.font = `${Math.round(Math.min(W, H) * 0.022)}px monospace`
-      c.fillStyle = ac(0.18)
-      c.fillText(s.cluster.replace("_", " "), cx, cy + Math.min(W, H) * 0.38)
+      // Top center: DQN action if available
+      if (s.dqnDecision) {
+        c.textAlign = "center"
+        c.textBaseline = "top"
+        c.font = "8px monospace"
+        c.fillStyle = ac(0.18)
+        c.fillText(`ACT: ${s.dqnDecision.action.replace(/_/g, " ")}`, W * 0.5, 10)
+        c.fillStyle = ac(0.1)
+        c.fillText(`ε ${s.dqnDecision.epsilon.toFixed(2)}  Q ${s.dqnDecision.chosenQ.toFixed(2)}`, W * 0.5, 22)
+      }
 
       animRef.current = requestAnimationFrame(draw)
     }
@@ -355,7 +382,7 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
     <canvas
       ref={canvasRef}
       className="w-full h-full block"
-      style={{ minHeight: 320 }}
+      style={{ minHeight: 340 }}
     />
   )
 }
