@@ -31,3 +31,14 @@ export interface NoeExpression {
     glitchIntensity: number    // 0-1
   }
 }
+
+// DQN decision output — what action Noe chose and why
+export interface DQNDecision {
+  action: string           // NoeAction label
+  qValues: number[]        // Q-value for each action
+  chosenQ: number          // Q-value of chosen action
+  epsilon: number          // current exploration rate
+  reward: number           // reward received for last action
+  bufferSize: number       // replay buffer fill level
+  steps: number            // total training steps
+}
