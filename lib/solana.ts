@@ -35,8 +35,19 @@ export interface ParsedTx {
   uiAmount: number        // raw token amount
 }
 
-// Fetch recent signatures for the token mint
+// Fetch recent signatures — tries Helius enhanced API first, falls back to RPC
 export async function fetchRecentSignatures(limit = 20): Promise<ConfirmedSignatureInfo[]> {
+  const heliusKey = process.env.HELIUS_API_KEY
+  if (heliusKey) {
+    try {
+      const url = `https://api.helius.xyz/v0/addresses/${NOEMA_CA}/transactions?api-key=${heliusKey}&limit=${limit}&type=SWAP`
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json() as { signature: string; timestamp: number }[]
+        return data.map(d => ({ signature: d.signature, slot: 0, err: null, memo: null, blockTime: d.timestamp } as ConfirmedSignatureInfo))
+      }
+    } catch {}
+  }
   const conn = getConnection()
   try {
     return await conn.getSignaturesForAddress(NOEMA_MINT, { limit })
@@ -69,52 +80,62 @@ function classifyTransaction(
   const meta = tx.meta!
   const timestamp = (tx.blockTime ?? Date.now() / 1000) * 1000
 
-  // Find token balance changes for our mint
-  const preBalances = meta.preTokenBalances ?? []
+  const preBalances  = meta.preTokenBalances  ?? []
   const postBalances = meta.postTokenBalances ?? []
 
   let maxDelta = 0
   let dominantWallet = ""
-  let netFlow = 0 // positive = tokens received (buy), negative = tokens sent (sell)
+  let netFlow = 0
 
   for (const post of postBalances) {
     if (post.mint !== NOEMA_CA) continue
     const pre = preBalances.find(
       (p) => p.accountIndex === post.accountIndex && p.mint === NOEMA_CA
     )
-    const preAmt = pre?.uiTokenAmount.uiAmount ?? 0
+    const preAmt  = pre?.uiTokenAmount.uiAmount  ?? 0
     const postAmt = post.uiTokenAmount.uiAmount ?? 0
-    const delta = postAmt - preAmt
+    const delta   = postAmt - preAmt
 
     if (Math.abs(delta) > Math.abs(maxDelta)) {
       maxDelta = delta
-      netFlow = delta
-      dominantWallet = tx.transaction.message.accountKeys[post.accountIndex]?.pubkey.toString() ?? ""
+      netFlow  = delta
+      // `post.owner` is the wallet that owns the ATA — use it when available
+      dominantWallet =
+        post.owner ??
+        tx.transaction.message.accountKeys[0]?.pubkey.toString() ??
+        ""
     }
   }
 
-  if (maxDelta === 0) return null
+  // Fallback: scan instructions for transferChecked / transfer
+  if (maxDelta === 0) {
+    for (const ix of tx.transaction.message.instructions) {
+      if ("parsed" in ix && ix.program === "spl-token") {
+        const p = ix.parsed as { type: string; info: { mint?: string; tokenAmount?: { uiAmount: number }; amount?: string; source?: string; destination?: string; authority?: string } }
+        if ((p.type === "transferChecked" || p.type === "transfer") && p.info.mint === NOEMA_CA) {
+          const amt = p.info.tokenAmount?.uiAmount ?? Number(p.info.amount ?? 0) / 1e6
+          if (amt > Math.abs(maxDelta)) {
+            maxDelta = amt
+            netFlow  = amt
+            dominantWallet = p.info.authority ?? p.info.source ?? ""
+          }
+        }
+      }
+    }
+    if (maxDelta === 0) return null
+  }
 
   const absAmount = Math.abs(maxDelta)
-
-  // Classify by amount thresholds
-  const isWhale = absAmount > 1_000_000
+  const isWhale   = absAmount > 1_000_000
   const magnitude = Math.min(10, Math.log10(absAmount + 1))
 
   let type: ParsedTx["type"]
-  if (isWhale) {
-    type = "WHALE_MOVE"
-  } else if (netFlow > 0) {
-    type = "BUY"
-  } else if (netFlow < 0) {
-    type = "SELL"
-  } else {
-    type = "HOLD"
-  }
+  if (isWhale)       type = "WHALE_MOVE"
+  else if (netFlow > 0) type = "BUY"
+  else if (netFlow < 0) type = "SELL"
+  else                   type = "HOLD"
 
-  // Wallet score: based on SOL balance proxy (fee payer balance)
-  const feePayerIndex = 0
-  const solBalance = (meta.postBalances[feePayerIndex] ?? 0) / 1e9
+  const solBalance  = (meta.postBalances[0] ?? 0) / 1e9
   const walletScore = Math.min(100, Math.round(Math.log10(solBalance + 1) * 40))
 
   return {

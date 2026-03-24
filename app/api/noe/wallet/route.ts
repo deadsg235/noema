@@ -40,7 +40,7 @@ export async function GET() {
   const now = Date.now()
 
   const lastFetch = global.__lastWalletFetch ?? 0
-  if (now - lastFetch < 15_000) {
+  if (now - lastFetch < 10_000) {
     return NextResponse.json({ skipped: true, reason: "rate_limited" })
   }
   global.__lastWalletFetch = now
@@ -48,7 +48,7 @@ export async function GET() {
   try {
     const conn = getConnection()
     const seenSigs = await getSeenSigs()
-    const signatures = await fetchRecentSignatures(15)
+    const signatures = await fetchRecentSignatures(25)
     const newSigs = signatures.filter((s) => !seenSigs.has(s.signature))
 
     if (newSigs.length === 0) {
@@ -56,7 +56,7 @@ export async function GET() {
     }
 
     const parsed = await Promise.all(
-      newSigs.slice(0, 8).map((s) => parseTransaction(conn, s.signature))
+      newSigs.slice(0, 10).map((s) => parseTransaction(conn, s.signature))
     )
     const valid = parsed.filter((t): t is NonNullable<typeof t> => t !== null)
 
