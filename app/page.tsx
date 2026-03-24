@@ -9,7 +9,7 @@ import NoeStateMatrix from "@/components/NoeStateMatrix"
 import NoeVisualizer from "@/components/NoeVisualizer"
 import WalletButton from "@/components/WalletButton"
 import WalletPanel from "@/components/WalletPanel"
-import { MOOD_COLORS, MOOD_ACCENT, NOEMA_CA, type NoeUIState } from "@/lib/noe-state"
+import { MOOD_COLORS, MOOD_ACCENT, NOEMA_CA, isInFlowState, type NoeUIState } from "@/lib/noe-state"
 import { NeuralNetSnapshot } from "@/lib/noe-engine/neural"
 
 function CABar({ accent }: { accent: string }) {
@@ -49,6 +49,7 @@ const BOOT_STATE: NoeUIState = {
   cluster: "NEUTRAL",
   milestoneTriggered: null,
   memoryNarrative: "",
+  isFlowState: false,
 }
 
 export default function Home() {
@@ -87,6 +88,7 @@ export default function Home() {
 
   const bg = MOOD_COLORS[state.mood]
   const accent = MOOD_ACCENT[state.mood]
+  const inFlow = state.isFlowState ?? isInFlowState(state.engineState)
 
   return (
     <motion.main
@@ -104,6 +106,40 @@ export default function Home() {
       <div className="pointer-events-none fixed inset-0 z-0" style={{
         background: "radial-gradient(ellipse 80% 60% at 50% 0%, transparent 60%, rgba(0,0,0,0.4) 100%)",
       }} />
+
+      {/* ── Flow state golden overlay ── */}
+      <AnimatePresence>
+        {inFlow && (
+          <motion.div
+            key="flow-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 3 }}
+            className="pointer-events-none fixed inset-0 z-0"
+            style={{
+              background: "radial-gradient(ellipse 90% 70% at 50% 40%, rgba(212,175,55,0.07) 0%, rgba(212,175,55,0.03) 50%, transparent 100%)",
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Flow state edge shimmer ── */}
+      <AnimatePresence>
+        {inFlow && (
+          <motion.div
+            key="flow-shimmer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.6, 0.3, 0.7, 0.4] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 4, repeat: Infinity, repeatType: "mirror" }}
+            className="pointer-events-none fixed inset-0 z-0"
+            style={{
+              background: "linear-gradient(135deg, rgba(212,175,55,0.04) 0%, transparent 40%, transparent 60%, rgba(212,175,55,0.04) 100%)",
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Header ── */}
       <header className="relative z-20 flex items-center justify-between px-6 py-3.5 border-b border-white/[0.04]" style={{
@@ -145,6 +181,23 @@ export default function Home() {
               animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
             <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: accent }}>ON-CHAIN</span>
           </motion.div>
+          {inFlow && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded border"
+              style={{ borderColor: "rgba(212,175,55,0.4)", background: "rgba(212,175,55,0.08)" }}
+            >
+              <motion.div
+                className="w-1 h-1 rounded-full"
+                style={{ background: "#d4af37" }}
+                animate={{ opacity: [1, 0.2, 1], scale: [1, 1.5, 1] }}
+                transition={{ duration: 1.2, repeat: Infinity }}
+              />
+              <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: "#d4af37" }}>FLOW</span>
+            </motion.div>
+          )}
           <WalletButton mood={state.mood} />
         </div>
       </header>
@@ -246,6 +299,7 @@ export default function Home() {
             expression={state.expression}
             engineState={state.engineState}
             neuralSnapshot={neuralSnap}
+            isFlowState={inFlow}
           />
         </motion.div>
 

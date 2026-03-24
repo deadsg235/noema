@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { NoeEngine, NoePersonality, PerceptionEvent } from "@/lib/noe-engine"
-import { computeMoodFromState, NoeUIState } from "@/lib/noe-state"
+import { computeMoodFromState, isInFlowState, NoeUIState } from "@/lib/noe-state"
 import { streamNoeResponse, ChatMessage, WalletContext } from "@/lib/noe-llm"
 import { PatternCluster } from "@/lib/noe-engine/cognition"
 
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
 
     const engineState = eng.getState()
     const mood = computeMoodFromState(engineState)
+    const flowState = isInFlowState(engineState)
     const summary = eng.memory.summarize()
     const memoryNarrative = eng.memory.recallNarrative()
     const cluster = lastOutput.cognition.cluster as PatternCluster
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
         liquidityFlow:    Math.round((engineState.growth - 0.5) * 200),
         collectiveIntent: Math.round(engineState.trust * 100),
       },
-      message: NoePersonality.getAmbientMessage(cluster),
+      message: NoePersonality.getAmbientMessage(cluster, flowState),
       timestamp: Date.now(),
       engineState,
       expression,
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
       milestoneTriggered: lastOutput.milestoneTriggered,
       memoryNarrative,
       dqnDecision: eng.getDQNDecision(),
+      isFlowState: flowState,
     }
 
     const stream = await streamNoeResponse({

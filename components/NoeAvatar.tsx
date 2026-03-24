@@ -12,6 +12,7 @@ interface Props {
   expression: NoeUIState["expression"]
   engineState?: NoeUIState["engineState"]
   neuralSnapshot?: NeuralNetSnapshot
+  isFlowState?: boolean
 }
 
 function NoeCanvas({
@@ -317,9 +318,9 @@ function NoeCanvas({
   return <canvas ref={canvasRef} width={280} height={280} className="relative z-10" />
 }
 
-export default function NoeAvatar({ mood, energy, message, expression, engineState, neuralSnapshot }: Props) {
+export default function NoeAvatar({ mood, energy, message, expression, engineState, neuralSnapshot, isFlowState }: Props) {
   const glow = MOOD_GLOW[mood]
-  const accent = MOOD_ACCENT[mood]
+  const accent = isFlowState ? "#d4af37" : MOOD_ACCENT[mood]
   const { visual } = expression
   const isGlitching = visual.glitchIntensity > 0.3
   const pulseSpeed = visual.energyFlow === "fragmented" ? 0.8 : 3

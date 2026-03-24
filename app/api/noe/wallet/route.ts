@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { NoeEngine, NoePersonality } from "@/lib/noe-engine"
-import { computeMoodFromState, NoeUIState } from "@/lib/noe-state"
+import { computeMoodFromState, isInFlowState, NoeUIState } from "@/lib/noe-state"
 import {
   fetchRecentSignatures,
   parseTransaction,
@@ -96,6 +96,7 @@ export async function GET() {
       cluster: lastOutput.cognition.cluster,
       milestoneTriggered: lastOutput.milestoneTriggered,
       memoryNarrative: eng.memory.recallNarrative(),
+      isFlowState: isInFlowState(engineState),
     }
 
     return NextResponse.json({

@@ -23,6 +23,7 @@ const MOOD_AESTHETIC: Record<NoeMood, string> = {
   active:       "cyan and electric blue, active neural streams, flowing data, alert and present",
   surging:      "deep purple and violet, intense energy, surging power, overwhelming presence",
   transcendent: "crimson and gold, transcendent light, beyond human form, omniscient gaze",
+  flow:         "warm gold and amber, perfectly harmonious light, pure signal, every system aligned, radiant clarity",
 }
 
 // ── Cluster → environmental context ─────────────────────────────────────────

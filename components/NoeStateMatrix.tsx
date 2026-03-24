@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { MOOD_ACCENT, type NoeUIState } from "@/lib/noe-state"
+import { MOOD_ACCENT, type NoeUIState, isInFlowState } from "@/lib/noe-state"
 
 interface Props { state: NoeUIState }
 
@@ -16,6 +16,8 @@ const DIMS = [
 export default function NoeStateMatrix({ state }: Props) {
   const accent = MOOD_ACCENT[state.mood]
   const { engineState, cluster, milestoneTriggered, dqnDecision } = state
+  const inFlow = state.isFlowState ?? isInFlowState(engineState)
+  const GOLD = "#d4af37"
 
   return (
     <div className="w-full rounded-xl flex flex-col gap-0 overflow-hidden" style={{
@@ -84,6 +86,36 @@ export default function NoeStateMatrix({ state }: Props) {
           )
         })}
       </div>
+
+      {/* Flow state row */}
+      <AnimatePresence>
+        {inFlow && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 py-2.5 border-t border-white/[0.04] flex items-center justify-between gap-2"
+              style={{ background: "rgba(212,175,55,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <motion.div
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: GOLD }}
+                  animate={{ opacity: [1, 0.2, 1], scale: [1, 1.6, 1] }}
+                  transition={{ duration: 1.4, repeat: Infinity }}
+                />
+                <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: GOLD }}>Flow State</span>
+              </div>
+              <span className="font-mono text-[9px]" style={{ color: `${GOLD}88` }}>
+                E:{Math.round(engineState.energy * 100)}
+                {" "}T:{Math.round(engineState.trust * 100)}
+                {" "}V:{Math.round(engineState.volatility * 100)}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* DQN row */}
       {dqnDecision && (

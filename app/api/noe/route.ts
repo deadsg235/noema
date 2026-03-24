@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { NoeEngine, NoePersonality, PerceptionEvent } from "@/lib/noe-engine"
-import { computeMoodFromState, NoeUIState } from "@/lib/noe-state"
+import { computeMoodFromState, isInFlowState, NoeUIState } from "@/lib/noe-state"
 import { loadEngineSnapshot, saveEngineSnapshot, loadSeenSignatures } from "@/lib/persistence"
 import { anchorNoeState } from "@/lib/noe-anchor"
 
@@ -67,8 +67,9 @@ function generateSignalBatch(count = 3): PerceptionEvent[] {
 function buildUIState(eng: NoeEngine, cluster: string, milestone: string | null): NoeUIState {
   const engineState = eng.getState()
   const mood = computeMoodFromState(engineState)
+  const flowState = isInFlowState(engineState)
   const expression = NoePersonality.getExpression(engineState)
-  expression.text = NoePersonality.getAmbientMessage(cluster as any)
+  expression.text = NoePersonality.getAmbientMessage(cluster as any, flowState)
 
   return {
     mood,
@@ -86,6 +87,7 @@ function buildUIState(eng: NoeEngine, cluster: string, milestone: string | null)
     milestoneTriggered: milestone,
     memoryNarrative: eng.memory.recallNarrative(),
     dqnDecision: eng.getDQNDecision(),
+    isFlowState: flowState,
   }
 }
 
