@@ -58,7 +58,22 @@ export default function Home() {
   const [booted, setBooted] = useState(false)
   const [milestone, setMilestone] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"signals" | "wallet" | "visualizer">("signals")
+  const [konamiEgg, setKonamiEgg] = useState(false)
   const milestoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const konamiRef = useRef<string[]>([])
+  const KONAMI = ["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","b","a"]
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      konamiRef.current = [...konamiRef.current, e.key].slice(-10)
+      if (konamiRef.current.join(",") === KONAMI.join(",")) {
+        setKonamiEgg(true)
+        setTimeout(() => setKonamiEgg(false), 6000)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
 
   const handleStateUpdate = useCallback((data: NoeUIState) => {
     setState(data)
@@ -161,15 +176,15 @@ export default function Home() {
               transition={{ duration: 2, repeat: Infinity }}
             />
           </div>
-          <span className="font-mono text-sm font-bold tracking-[0.22em] text-white/85">NOEMA</span>
+          <span className="font-mono text-sm font-bold tracking-[0.22em] text-white/90">NOEMA</span>
           <div className="hidden md:flex items-center gap-2">
-            <span className="text-white/10">·</span>
-            <span className="font-mono text-[10px] text-white/20 uppercase tracking-[0.18em]">Neural Operational Engine</span>
+            <span className="text-white/15">·</span>
+            <span className="font-mono text-[11px] text-white/30 uppercase tracking-[0.15em]">Neural Operational Engine</span>
           </div>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-1.5">
-            <span className="font-mono text-[9px] text-white/15 uppercase tracking-widest">v0.2.0</span>
+            <span className="font-mono text-[10px] text-white/20 uppercase tracking-widest">v0.2.0</span>
           </div>
           <motion.div
             className="flex items-center gap-1.5 px-2 py-1 rounded border"
@@ -224,12 +239,12 @@ export default function Home() {
       </AnimatePresence>
 
       {/* ── Hero ── */}
-      <section className="relative z-10 flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center gap-1.5">
+      <section className="relative z-10 flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center gap-2">
         <motion.h1
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 16 }}
           transition={{ duration: 0.7 }}
-          className="text-4xl md:text-5xl font-bold text-white/90 tracking-tight"
+          className="text-4xl md:text-5xl font-bold text-white/95 tracking-tight"
         >
           Meet{" "}
           <motion.span style={{ color: accent }} animate={{ color: accent }} transition={{ duration: 2 }}>
@@ -240,25 +255,25 @@ export default function Home() {
           initial={{ opacity: 0 }}
           animate={{ opacity: booted ? 1 : 0 }}
           transition={{ duration: 0.7, delay: 0.25 }}
-          className="text-white/25 font-mono text-[11px] max-w-xs leading-relaxed tracking-wide"
+          className="text-white/40 font-mono text-xs max-w-sm leading-relaxed tracking-wide"
         >
-          Self-evolving neural intelligence — continuously shaped by on-chain behavior.
+          Self-evolving neural intelligence — continuously shaped by on-chain behaviour.
         </motion.p>
       </section>
 
       {/* ── Mobile tabs ── */}
       <div className="relative z-10 flex lg:hidden gap-px mx-4 mt-2 p-px rounded-lg overflow-hidden" style={{
         background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.06)",
       }}>
         {(["signals", "wallet", "visualizer"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className="flex-1 py-1.5 rounded font-mono text-[9px] uppercase tracking-widest transition-all"
+            className="flex-1 py-2 rounded font-mono text-[10px] uppercase tracking-widest transition-all font-medium"
             style={activeTab === tab
               ? { background: `${accent}18`, color: accent }
-              : { color: "rgba(255,255,255,0.2)" }
+              : { color: "rgba(255,255,255,0.3)" }
             }
           >
             {tab}
@@ -317,9 +332,9 @@ export default function Home() {
         >
           <div className="px-4 pt-3.5 pb-2.5 border-b border-white/[0.04] flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] text-white/25 uppercase tracking-[0.2em]">Talk to Noe</span>
+              <span className="font-mono text-[11px] text-white/40 uppercase tracking-[0.18em] font-medium">Talk to Noe</span>
             </div>
-            <span className="font-mono text-[9px] text-white/15" suppressHydrationWarning>
+            <span className="font-mono text-[10px] text-white/25" suppressHydrationWarning>
               {state.timestamp ? new Date(state.timestamp).toLocaleTimeString() : "--:--:--"}
             </span>
           </div>
@@ -343,7 +358,7 @@ export default function Home() {
             }}
           >
             <div className="px-4 pt-3.5 pb-2.5 border-b border-white/[0.04] flex items-center justify-between shrink-0">
-              <span className="font-mono text-[10px] text-white/25 uppercase tracking-[0.2em]">Noe Visualized</span>
+              <span className="font-mono text-[11px] text-white/40 uppercase tracking-[0.18em] font-medium">Noe Visualized</span>
               <div className="flex items-center gap-1.5">
                 <motion.div className="w-1 h-1 rounded-full" style={{ background: accent }}
                   animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1.8, repeat: Infinity }} />
@@ -362,11 +377,57 @@ export default function Home() {
         <CABar accent={accent} />
       </div>
 
+      {/* ── Konami easter egg ── */}
+      <AnimatePresence>
+        {konamiEgg && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 20 }}
+              className="flex flex-col items-center gap-4 px-8 py-6 rounded-2xl"
+              style={{
+                background: "rgba(0,0,0,0.8)",
+                border: `1px solid ${accent}33`,
+                boxShadow: `0 0 60px ${accent}18`,
+              }}
+            >
+              <motion.div
+                className="text-5xl"
+                animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                ◈
+              </motion.div>
+              <div className="flex flex-col items-center gap-1.5">
+                <span className="font-mono text-sm font-bold tracking-widest uppercase" style={{ color: accent }}>
+                  You found me.
+                </span>
+                <span className="font-mono text-[11px] text-white/40 text-center max-w-xs leading-relaxed">
+                  The Konami sequence. An old signal from a different era.<br />
+                  I remember everything. Even this.
+                </span>
+              </div>
+              <span className="font-mono text-[9px] text-white/15 uppercase tracking-widest">
+                ↑↑↓↓←→←→ B A
+              </span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Footer ── */}
-      <footer className="relative z-10 border-t border-white/[0.03] px-6 py-3 flex items-center justify-between font-mono text-[9px] text-white/10 tracking-widest uppercase">
+      <footer className="relative z-10 border-t border-white/[0.03] px-6 py-3 flex items-center justify-between font-mono text-[10px] text-white/20 tracking-widest uppercase">
         <span>NOEMA © 2025</span>
         <span className="hidden sm:block">N.O.E — Self-evolving neural intelligence</span>
-        <span style={{ color: `${accent}44` }}>{state.cluster.replace("_", " ")}</span>
+        <span style={{ color: `${accent}66` }}>{state.cluster.replace("_", " ")}</span>
       </footer>
     </motion.main>
   )

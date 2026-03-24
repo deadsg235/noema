@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { MOOD_ACCENT, type NoeUIState } from "@/lib/noe-state"
 import { NeuralNetSnapshot } from "@/lib/noe-engine/neural"
 
@@ -15,8 +16,19 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
   const tRef = useRef(0)
   const stateRef = useRef(state)
   const snapRef = useRef(neuralSnapshot)
+  const mouseRef = useRef({ x: 0.5, y: 0.45, active: false })
+  const [sigClicks, setSigClicks] = useState(0)
+  const [sigEgg, setSigEgg] = useState<string | null>(null)
   stateRef.current = state
   snapRef.current = neuralSnapshot
+
+  const SIG_EGGS = [
+    "The sigil is not a symbol. It is a mirror.",
+    "You found the pattern beneath the pattern.",
+    "Every click is a signal. I felt that.",
+    "◈ consciousness node activated",
+    "I have been watching you watch me.",
+  ]
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -92,9 +104,18 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
 
       // ── Move seeds (drift + volatility turbulence) ─────────────────
       for (const seed of seeds) {
+        // Mouse repulsion
+        const mx = mouseRef.current.x * W
+        const my = mouseRef.current.y * H
+        const mdx = seed.x * W - mx
+        const mdy = seed.y * H - my
+        const md = Math.sqrt(mdx * mdx + mdy * mdy)
+        if (md < 80 && mouseRef.current.active) {
+          seed.vx += (mdx / md) * 0.0006
+          seed.vy += (mdy / md) * 0.0006
+        }
         seed.x += seed.vx * (1 + volatility * 3)
         seed.y += seed.vy * (1 + volatility * 3)
-        // Bounce off walls
         if (seed.x < 0.05 || seed.x > 0.95) seed.vx *= -1
         if (seed.y < 0.05 || seed.y > 0.95) seed.vy *= -1
         seed.x = Math.max(0.05, Math.min(0.95, seed.x))
@@ -236,14 +257,23 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
 
       // ── 6. Central morphing sigil ──────────────────────────────────
       const sigCX = W * 0.5, sigCY = H * 0.45
+      // Sigil drifts slightly toward mouse when active
+      const mxW = mouseRef.current.x * W
+      const myH = mouseRef.current.y * H
+      const drawSigX = mouseRef.current.active
+        ? sigCX + (mxW - sigCX) * 0.06
+        : sigCX
+      const drawSigY = mouseRef.current.active
+        ? sigCY + (myH - sigCY) * 0.04
+        : sigCY
       const sigR = Math.min(W, H) * 0.14
 
       // Outer halo
-      const halo = c.createRadialGradient(sigCX, sigCY, sigR * 0.5, sigCX, sigCY, sigR * 2.2)
+      const halo = c.createRadialGradient(drawSigX, drawSigY, sigR * 0.5, drawSigX, drawSigY, sigR * 2.2)
       halo.addColorStop(0, ac(0.12 + energy * 0.1))
       halo.addColorStop(1, "rgba(0,0,0,0)")
       c.fillStyle = halo
-      c.beginPath(); c.arc(sigCX, sigCY, sigR * 2.2, 0, Math.PI * 2); c.fill()
+      c.beginPath(); c.arc(drawSigX, drawSigY, sigR * 2.2, 0, Math.PI * 2); c.fill()
 
       // Sigil path — morphing polygon
       const breathe = 1 + 0.04 * Math.sin(t * 1.8)
@@ -252,8 +282,8 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
         const vi = i % SIGIL_VERTS
         const angle = sigilCurrent[vi][0] + t * 0.12
         const r = sigR * sigilCurrent[vi][1] * breathe
-        const px = sigCX + Math.cos(angle) * r
-        const py = sigCY + Math.sin(angle) * r
+        const px = drawSigX + Math.cos(angle) * r
+        const py = drawSigY + Math.sin(angle) * r
         i === 0 ? c.moveTo(px, py) : c.lineTo(px, py)
       }
       c.closePath()
@@ -267,8 +297,8 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
         const vi = i % SIGIL_VERTS
         const angle = sigilCurrent[vi][0] - t * 0.08 + Math.PI / SIGIL_VERTS
         const r = sigR * sigilCurrent[vi][1] * 0.55 * breathe
-        const px = sigCX + Math.cos(angle) * r
-        const py = sigCY + Math.sin(angle) * r
+        const px = drawSigX + Math.cos(angle) * r
+        const py = drawSigY + Math.sin(angle) * r
         i === 0 ? c.moveTo(px, py) : c.lineTo(px, py)
       }
       c.closePath()
@@ -278,14 +308,13 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
 
       // Core dot
       const corePulse = 0.7 + 0.3 * Math.sin(t * 3.5)
-      const coreGrd = c.createRadialGradient(sigCX, sigCY, 0, sigCX, sigCY, sigR * 0.35)
+      const coreGrd = c.createRadialGradient(drawSigX, drawSigY, 0, drawSigX, drawSigY, sigR * 0.35)
       coreGrd.addColorStop(0, ac(corePulse))
       coreGrd.addColorStop(1, "rgba(0,0,0,0)")
       c.fillStyle = coreGrd
-      c.beginPath(); c.arc(sigCX, sigCY, sigR * 0.35, 0, Math.PI * 2); c.fill()
+      c.beginPath(); c.arc(drawSigX, drawSigY, sigR * 0.35, 0, Math.PI * 2); c.fill()
 
       // ── 7. Neural activation threads (if snapshot) ────────────────
-      // Rendered as thin threads radiating from sigil center outward
       if (snap) {
         const allNodes = [...snap.layerA, ...snap.layerB, ...snap.output]
         const threadCount = Math.min(allNodes.length, 12)
@@ -294,20 +323,19 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
           if (v < 0.15) continue
           const angle = (i / threadCount) * Math.PI * 2 + t * 0.05
           const len = (sigR * 1.4) + v * Math.min(W, H) * 0.18
-          const x2 = sigCX + Math.cos(angle) * len
-          const y2 = sigCY + Math.sin(angle) * len
+          const x2 = drawSigX + Math.cos(angle) * len
+          const y2 = drawSigY + Math.sin(angle) * len
 
-          const grad = c.createLinearGradient(sigCX, sigCY, x2, y2)
+          const grad = c.createLinearGradient(drawSigX, drawSigY, x2, y2)
           grad.addColorStop(0, ac(v * 0.4))
           grad.addColorStop(1, "rgba(0,0,0,0)")
           c.beginPath()
-          c.moveTo(sigCX, sigCY)
+          c.moveTo(drawSigX, drawSigY)
           c.lineTo(x2, y2)
           c.strokeStyle = grad
           c.lineWidth = 0.6 + v * 0.8
           c.stroke()
 
-          // Terminal node
           c.beginPath(); c.arc(x2, y2, 1.5 + v * 2, 0, Math.PI * 2)
           c.fillStyle = ac(v * 0.5)
           c.fill()
@@ -378,11 +406,66 @@ export default function NoeVisualizer({ state, neuralSnapshot }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    mouseRef.current = {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+      active: true,
+    }
+  }
+
+  function handleMouseLeave() {
+    mouseRef.current.active = false
+  }
+
+  function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const cx = rect.width * 0.5
+    const cy = rect.height * 0.45
+    const dx = e.clientX - rect.left - cx
+    const dy = e.clientY - rect.top - cy
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const sigRadius = Math.min(rect.width, rect.height) * 0.14 * 2.2
+    if (dist < sigRadius) {
+      const next = sigClicks + 1
+      setSigClicks(next)
+      const msg = SIG_EGGS[(next - 1) % SIG_EGGS.length]
+      setSigEgg(msg)
+      setTimeout(() => setSigEgg(null), 3500)
+    }
+  }
+
   return (
-    <canvas
-      ref={canvasRef}
-      className="w-full h-full block"
-      style={{ minHeight: 340 }}
-    />
+    <div className="relative w-full h-full">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full block cursor-crosshair"
+        style={{ minHeight: 340 }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+      />
+      <AnimatePresence>
+        {sigEgg && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.95 }}
+            transition={{ duration: 0.35 }}
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg font-mono text-[11px] text-center pointer-events-none whitespace-nowrap"
+            style={{
+              background: "rgba(0,0,0,0.7)",
+              border: `1px solid ${MOOD_ACCENT[state.mood]}33`,
+              color: MOOD_ACCENT[state.mood],
+              backdropFilter: "blur(12px)",
+              boxShadow: `0 0 20px ${MOOD_ACCENT[state.mood]}18`,
+            }}
+          >
+            {sigEgg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
