@@ -1,114 +1,124 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { MOOD_ACCENT, type NoeUIState } from "@/lib/noe-state"
 
-interface Props {
-  state: NoeUIState
-}
+interface Props { state: NoeUIState }
 
-const DIMENSIONS = [
-  { key: "stability",  label: "Stability",  desc: "Market calm" },
-  { key: "trust",      label: "Trust",      desc: "Holder loyalty" },
-  { key: "energy",     label: "Energy",     desc: "Activity level" },
-  { key: "volatility", label: "Volatility", desc: "Unpredictability" },
-  { key: "growth",     label: "Growth",     desc: "Expansion trend" },
+const DIMS = [
+  { key: "stability",  label: "STB", full: "Stability"  },
+  { key: "trust",      label: "TRS", full: "Trust"      },
+  { key: "energy",     label: "NRG", full: "Energy"     },
+  { key: "volatility", label: "VLT", full: "Volatility" },
+  { key: "growth",     label: "GRW", full: "Growth"     },
 ] as const
-
-function StateBar({
-  label,
-  desc,
-  value,
-  accent,
-  isHigh,
-}: {
-  label: string
-  desc: string
-  value: number
-  accent: string
-  isHigh: boolean
-}) {
-  const pct = Math.round(value * 100)
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex justify-between items-baseline">
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-mono text-xs text-white/60">{label}</span>
-          <span className="font-mono text-[10px] text-white/20">{desc}</span>
-        </div>
-        <motion.span
-          className="font-mono text-xs font-bold"
-          style={{ color: isHigh ? accent : "rgba(255,255,255,0.3)" }}
-          animate={{ opacity: isHigh ? [1, 0.6, 1] : 1 }}
-          transition={{ duration: 1.5, repeat: isHigh ? Infinity : 0 }}
-        >
-          {pct}%
-        </motion.span>
-      </div>
-      <div className="h-[3px] w-full rounded-full bg-white/5 overflow-hidden">
-        <motion.div
-          className="h-full rounded-full"
-          style={{ background: isHigh ? accent : `${accent}55` }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
-        />
-      </div>
-    </div>
-  )
-}
 
 export default function NoeStateMatrix({ state }: Props) {
   const accent = MOOD_ACCENT[state.mood]
-  const { engineState, cluster, milestoneTriggered } = state
+  const { engineState, cluster, milestoneTriggered, dqnDecision } = state
 
   return (
-    <div className="w-full rounded-xl border border-white/5 bg-white/[0.02] p-4 flex flex-col gap-4">
+    <div className="w-full rounded-xl flex flex-col gap-0 overflow-hidden" style={{
+      background: "rgba(255,255,255,0.015)",
+      border: "1px solid rgba(255,255,255,0.05)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+    }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-xs text-white/30 uppercase tracking-widest">N.O.E State Matrix</span>
-        <div className="flex items-center gap-2">
-          <motion.div
-            className="w-1.5 h-1.5 rounded-full"
-            style={{ background: accent }}
-            animate={{ opacity: [1, 0.2, 1] }}
-            transition={{ duration: 1.2, repeat: Infinity }}
-          />
-          <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: accent }}>
+      <div className="px-4 pt-3.5 pb-2.5 border-b border-white/[0.04] flex items-center justify-between">
+        <span className="font-mono text-[10px] text-white/25 uppercase tracking-[0.2em]">State Vector</span>
+        <div className="flex items-center gap-1.5">
+          <motion.div className="w-1 h-1 rounded-full" style={{ background: accent }}
+            animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
+          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: `${accent}cc` }}>
             {cluster.replace("_", " ")}
           </span>
         </div>
       </div>
 
-      {/* 5-axis state vector */}
-      <div className="flex flex-col gap-3">
-        {DIMENSIONS.map(({ key, label, desc }) => {
-          const value = engineState[key]
-          const isHigh = value > 0.65
+      {/* Dimension rows */}
+      <div className="flex flex-col divide-y divide-white/[0.03]">
+        {DIMS.map(({ key, label, full }) => {
+          const val = engineState[key]
+          const pct = Math.round(val * 100)
+          const isHigh = val > 0.65
+          const isLow  = val < 0.25
+
           return (
-            <StateBar
-              key={key}
-              label={label}
-              desc={desc}
-              value={value}
-              accent={accent}
-              isHigh={isHigh}
-            />
+            <div key={key} className="flex items-center gap-3 px-4 py-2.5 group">
+              {/* Label */}
+              <span className="font-mono text-[9px] text-white/20 uppercase tracking-widest w-7 shrink-0">{label}</span>
+
+              {/* Bar track */}
+              <div className="flex-1 relative h-px" style={{ background: "rgba(255,255,255,0.05)" }}>
+                <motion.div
+                  className="absolute inset-y-0 left-0 h-full"
+                  style={{ background: isHigh ? accent : isLow ? "rgba(255,255,255,0.12)" : `${accent}66` }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.9, ease: "easeOut" }}
+                />
+                {isHigh && (
+                  <motion.div
+                    className="absolute inset-y-0 left-0 h-full blur-sm"
+                    style={{ background: accent, opacity: 0.35 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.9, ease: "easeOut" }}
+                  />
+                )}
+              </div>
+
+              {/* Value */}
+              <motion.span
+                className="font-mono text-[10px] tabular-nums w-7 text-right shrink-0"
+                style={{ color: isHigh ? accent : "rgba(255,255,255,0.2)" }}
+                animate={{ opacity: isHigh ? [1, 0.55, 1] : 1 }}
+                transition={{ duration: 1.8, repeat: isHigh ? Infinity : 0 }}
+              >
+                {pct}
+              </motion.span>
+
+              {/* Full label on hover — hidden by default */}
+              <span className="font-mono text-[9px] text-white/10 w-14 shrink-0 hidden group-hover:block transition-all">
+                {full}
+              </span>
+            </div>
           )
         })}
       </div>
 
-      {/* Milestone flash */}
-      {milestoneTriggered && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          className="rounded-lg border px-3 py-2 font-mono text-xs"
-          style={{ borderColor: `${accent}44`, background: `${accent}11`, color: accent }}
-        >
-          ◈ MILESTONE: {milestoneTriggered}
-        </motion.div>
+      {/* DQN row */}
+      {dqnDecision && (
+        <div className="px-4 py-2.5 border-t border-white/[0.04] flex items-center justify-between gap-2">
+          <span className="font-mono text-[9px] text-white/15 uppercase tracking-widest shrink-0">DQN</span>
+          <span className="font-mono text-[9px] text-white/30 truncate">
+            {dqnDecision.action.replace(/_/g, " ")}
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-mono text-[9px] text-white/15">
+              ε {dqnDecision.epsilon.toFixed(2)}
+            </span>
+            <span className="font-mono text-[9px]" style={{ color: `${accent}88` }}>
+              Q {dqnDecision.chosenQ.toFixed(2)}
+            </span>
+          </div>
+        </div>
       )}
+
+      {/* Milestone flash */}
+      <AnimatePresence>
+        {milestoneTriggered && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 py-2.5 border-t border-white/[0.04] font-mono text-[10px]"
+              style={{ color: accent, background: `${accent}08` }}>
+              ◈ {milestoneTriggered}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

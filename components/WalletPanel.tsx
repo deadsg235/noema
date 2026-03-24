@@ -18,18 +18,24 @@ interface Props {
   onStateUpdate: (state: NoeUIState) => void
 }
 
-const TYPE_COLOR: Record<LiveTx["type"], string> = {
+const TX_COLOR: Record<LiveTx["type"], string> = {
   BUY:        "#40c4ff",
   SELL:       "#e94560",
   HOLD:       "#9333ea",
   WHALE_MOVE: "#f59e0b",
 }
 
-const TYPE_LABEL: Record<LiveTx["type"], string> = {
+const TX_LABEL: Record<LiveTx["type"], string> = {
   BUY:        "BUY",
   SELL:       "SELL",
-  HOLD:       "HOLD",
-  WHALE_MOVE: "WHALE",
+  HOLD:       "HLD",
+  WHALE_MOVE: "WHL",
+}
+
+function fmtAmount(n: number) {
+  if (n > 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
+  if (n > 1_000)     return `${(n / 1_000).toFixed(1)}K`
+  return n.toFixed(0)
 }
 
 export default function WalletPanel({ state, onStateUpdate }: Props) {
@@ -47,10 +53,7 @@ export default function WalletPanel({ state, onStateUpdate }: Props) {
       const data = await res.json()
       if (data.skipped || data.newEvents === 0) return
       if (data.transactions?.length) {
-        setLiveTxs((prev) => {
-          const merged = [...data.transactions, ...prev]
-          return merged.slice(0, 12)
-        })
+        setLiveTxs((prev) => [...data.transactions, ...prev].slice(0, 12))
       }
       if (data.state) onStateUpdate(data.state)
     } catch {} finally {
@@ -58,7 +61,6 @@ export default function WalletPanel({ state, onStateUpdate }: Props) {
     }
   }, [syncing, onStateUpdate])
 
-  // Poll on-chain every 20s
   useEffect(() => {
     syncChain()
     const interval = setInterval(syncChain, 20_000)
@@ -66,112 +68,107 @@ export default function WalletPanel({ state, onStateUpdate }: Props) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="w-full rounded-xl border border-white/5 bg-white/[0.02] p-4 flex flex-col gap-4">
+    <div className="w-full rounded-xl flex flex-col overflow-hidden" style={{
+      background: "rgba(255,255,255,0.015)",
+      border: "1px solid rgba(255,255,255,0.05)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+    }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-xs text-white/30 uppercase tracking-widest">On-Chain Feed</span>
-        <div className="flex items-center gap-2">
+      <div className="px-4 pt-3.5 pb-2.5 border-b border-white/[0.04] flex items-center justify-between">
+        <span className="font-mono text-[10px] text-white/25 uppercase tracking-[0.2em]">On-Chain Feed</span>
+        <div className="flex items-center gap-1.5">
           <motion.div
-            className="w-1.5 h-1.5 rounded-full"
+            className="w-1 h-1 rounded-full"
             style={{ background: syncing ? "#f59e0b" : accent }}
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ duration: syncing ? 0.4 : 2, repeat: Infinity }}
+            animate={{ opacity: [1, 0.2, 1] }}
+            transition={{ duration: syncing ? 0.35 : 1.8, repeat: Infinity }}
           />
-          <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: accent }}>
-            {syncing ? "SYNCING" : "LIVE"}
+          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: syncing ? "#f59e0b" : accent }}>
+            {syncing ? "SYNC" : "LIVE"}
           </span>
         </div>
       </div>
 
-      {/* Connected wallet info */}
-      {connected && address && (
+      {/* Connected wallet */}
+      {connected && address ? (
         <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-lg border border-white/5 bg-white/[0.03] p-3 flex flex-col gap-2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mx-3 mt-3 rounded-lg p-3 flex flex-col gap-2"
+          style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}
         >
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] text-white/30 uppercase tracking-widest">Your Wallet</span>
+            <span className="font-mono text-[9px] text-white/20 uppercase tracking-widest">Your Wallet</span>
             {hasTokens && (
-              <span
-                className="font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full"
-                style={{ background: `${accent}22`, color: accent }}
-              >
-                NOEMA Holder
+              <span className="font-mono text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded"
+                style={{ background: `${accent}18`, color: accent }}>
+                NOEMA holder
               </span>
             )}
           </div>
-          <div className="flex justify-between font-mono text-xs">
-            <span className="text-white/40">Address</span>
-            <span className="text-white/60">{address.slice(0, 6)}...{address.slice(-6)}</span>
-          </div>
-          <div className="flex justify-between font-mono text-xs">
-            <span className="text-white/40">SOL</span>
-            <span style={{ color: accent }}>{solBalance.toFixed(4)}</span>
-          </div>
-          <div className="flex justify-between font-mono text-xs">
-            <span className="text-white/40">NOEMA</span>
-            <span style={{ color: accent }}>
-              {tokenBalance > 0 ? tokenBalance.toLocaleString() : "—"}
-            </span>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            {[
+              { label: "Address", val: `${address.slice(0, 6)}···${address.slice(-6)}` },
+              { label: "SOL",     val: solBalance.toFixed(4) },
+              { label: "NOEMA",   val: tokenBalance > 0 ? tokenBalance.toLocaleString() : "—" },
+            ].map(({ label, val }) => (
+              <div key={label} className="flex justify-between col-span-2 sm:col-span-1">
+                <span className="font-mono text-[10px] text-white/25">{label}</span>
+                <span className="font-mono text-[10px]" style={{ color: label === "Address" ? "rgba(255,255,255,0.4)" : accent }}>
+                  {val}
+                </span>
+              </div>
+            ))}
           </div>
         </motion.div>
-      )}
-
-      {/* Not connected nudge */}
-      {!connected && (
-        <p className="font-mono text-[11px] text-white/20 leading-relaxed">
-          Connect your Phantom wallet to let Noe read your NOEMA holdings and stabilize her trust signal.
+      ) : (
+        <p className="px-4 py-3 font-mono text-[10px] text-white/15 leading-relaxed">
+          Connect Phantom to let Noe read your holdings and stabilize her trust signal.
         </p>
       )}
 
-      {/* Live transaction feed */}
-      <div className="flex flex-col gap-1">
-        <span className="font-mono text-[10px] text-white/20 uppercase tracking-widest mb-1">
+      {/* TX feed */}
+      <div className="flex flex-col px-3 pb-3 mt-2 gap-0">
+        <span className="font-mono text-[9px] text-white/15 uppercase tracking-widest px-1 pb-1.5">
           CA Transactions
         </span>
+
         {liveTxs.length === 0 ? (
-          <p className="font-mono text-[11px] text-white/15 italic">
+          <p className="font-mono text-[10px] text-white/10 italic px-1 py-2">
             Waiting for on-chain activity...
           </p>
         ) : (
-          <AnimatePresence initial={false}>
-            {liveTxs.map((tx) => (
-              <motion.div
-                key={tx.signature}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.25 }}
-                className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-mono text-[10px] font-bold uppercase w-10"
-                    style={{ color: TYPE_COLOR[tx.type] }}
-                  >
-                    {TYPE_LABEL[tx.type]}
+          <div className="flex flex-col divide-y divide-white/[0.03]">
+            <AnimatePresence initial={false}>
+              {liveTxs.map((tx) => (
+                <motion.div
+                  key={tx.signature}
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center justify-between py-1.5 px-1"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[9px] font-bold w-7 shrink-0"
+                      style={{ color: TX_COLOR[tx.type] }}>
+                      {TX_LABEL[tx.type]}
+                    </span>
+                    <span className="font-mono text-[9px] text-white/20">{tx.wallet}</span>
+                  </div>
+                  <span className="font-mono text-[10px] tabular-nums" style={{ color: TX_COLOR[tx.type] }}>
+                    {fmtAmount(tx.uiAmount)}
                   </span>
-                  <span className="font-mono text-[10px] text-white/30">{tx.wallet}</span>
-                </div>
-                <span className="font-mono text-[10px]" style={{ color: TYPE_COLOR[tx.type] }}>
-                  {tx.uiAmount > 1_000_000
-                    ? `${(tx.uiAmount / 1_000_000).toFixed(2)}M`
-                    : tx.uiAmount > 1_000
-                    ? `${(tx.uiAmount / 1_000).toFixed(1)}K`
-                    : tx.uiAmount.toFixed(0)}
-                </span>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
-      {/* CA reference */}
-      <div className="pt-1 border-t border-white/5">
-        <p className="font-mono text-[9px] text-white/15 break-all">
-          {NOEMA_CA}
-        </p>
+      {/* CA */}
+      <div className="px-4 py-2.5 border-t border-white/[0.03]">
+        <p className="font-mono text-[8px] text-white/10 break-all">{NOEMA_CA}</p>
       </div>
     </div>
   )

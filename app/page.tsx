@@ -20,32 +20,19 @@ function CABar({ accent }: { accent: string }) {
     setTimeout(() => setCopied(false), 2000)
   }
   return (
-    <div className="border-t border-white/5 px-4 py-3 flex items-center justify-center gap-3">
-      <span className="font-mono text-[10px] text-white/25 uppercase tracking-widest hidden sm:block">CA</span>
-      <span className="font-mono text-xs text-white/40 tracking-wider break-all text-center">{NOEMA_CA}</span>
+    <div className="border-t border-white/[0.04] px-6 py-3 flex items-center justify-center gap-4">
+      <span className="font-mono text-[9px] text-white/15 uppercase tracking-[0.25em] hidden sm:block">CONTRACT</span>
+      <span className="font-mono text-[11px] text-white/30 tracking-wider break-all text-center">{NOEMA_CA}</span>
       <button
         onClick={copy}
-        className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-lg border font-mono text-[10px] uppercase tracking-widest transition-all"
+        className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded border font-mono text-[9px] uppercase tracking-widest transition-all"
         style={{
-          borderColor: copied ? `${accent}66` : "rgba(255,255,255,0.08)",
-          color: copied ? accent : "rgba(255,255,255,0.3)",
-          background: copied ? `${accent}11` : "transparent",
+          borderColor: copied ? `${accent}55` : "rgba(255,255,255,0.06)",
+          color: copied ? accent : "rgba(255,255,255,0.2)",
+          background: copied ? `${accent}0d` : "transparent",
         }}
       >
-        {copied ? (
-          <>
-            <motion.span initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="text-[10px]">✓</motion.span>
-            Copied
-          </>
-        ) : (
-          <>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="9" y="9" width="13" height="13" rx="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            Copy
-          </>
-        )}
+        {copied ? "✓ copied" : "copy"}
       </button>
     </div>
   )
@@ -69,7 +56,7 @@ export default function Home() {
   const [neuralSnap, setNeuralSnap] = useState<NeuralNetSnapshot | undefined>()
   const [booted, setBooted] = useState(false)
   const [milestone, setMilestone] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"signals" | "wallet" | "image">("signals")
+  const [activeTab, setActiveTab] = useState<"signals" | "wallet" | "visualizer">("signals")
   const milestoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleStateUpdate = useCallback((data: NoeUIState) => {
@@ -103,35 +90,61 @@ export default function Home() {
 
   return (
     <motion.main
-      className="min-h-screen flex flex-col"
+      className="min-h-screen flex flex-col relative"
       animate={{ backgroundColor: bg }}
       transition={{ duration: 2.5 }}
       style={{ backgroundColor: bg }}
     >
+      {/* Scanline overlay */}
+      <div className="pointer-events-none fixed inset-0 z-0" style={{
+        backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)",
+      }} />
+
+      {/* Ambient vignette */}
+      <div className="pointer-events-none fixed inset-0 z-0" style={{
+        background: "radial-gradient(ellipse 80% 60% at 50% 0%, transparent 60%, rgba(0,0,0,0.4) 100%)",
+      }} />
+
       {/* ── Header ── */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-white/5 backdrop-blur-sm sticky top-0 z-20">
+      <header className="relative z-20 flex items-center justify-between px-6 py-3.5 border-b border-white/[0.04]" style={{
+        background: "rgba(0,0,0,0.25)",
+        backdropFilter: "blur(20px)",
+      }}>
         <div className="flex items-center gap-3">
-          <motion.div
-            className="w-2 h-2 rounded-full"
-            style={{ background: accent }}
-            animate={{ opacity: [1, 0.2, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          />
-          <span className="font-mono text-sm font-bold tracking-[0.2em] text-white/80">NOEMA</span>
-          <span className="font-mono text-[10px] text-white/20 uppercase tracking-widest hidden md:block">
-            Neural Operational Engine
-          </span>
+          <div className="relative">
+            <motion.div
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: accent }}
+              animate={{ opacity: [1, 0.15, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+            <motion.div
+              className="absolute inset-0 rounded-full"
+              style={{ background: accent }}
+              animate={{ scale: [1, 2.5, 1], opacity: [0.4, 0, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+          </div>
+          <span className="font-mono text-sm font-bold tracking-[0.22em] text-white/85">NOEMA</span>
+          <div className="hidden md:flex items-center gap-2">
+            <span className="text-white/10">·</span>
+            <span className="font-mono text-[10px] text-white/20 uppercase tracking-[0.18em]">Neural Operational Engine</span>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="font-mono text-xs text-white/20 hidden sm:block">v0.2.0</span>
-          <motion.span
-            className="font-mono text-xs"
-            style={{ color: accent }}
-            animate={{ opacity: [1, 0.5, 1] }}
+        <div className="flex items-center gap-5">
+          <div className="hidden sm:flex items-center gap-1.5">
+            <span className="font-mono text-[9px] text-white/15 uppercase tracking-widest">v0.2.0</span>
+          </div>
+          <motion.div
+            className="flex items-center gap-1.5 px-2 py-1 rounded border"
+            style={{ borderColor: `${accent}22`, background: `${accent}08` }}
+            animate={{ borderColor: [`${accent}22`, `${accent}44`, `${accent}22`] }}
             transition={{ duration: 3, repeat: Infinity }}
           >
-            ON-CHAIN
-          </motion.span>
+            <motion.div className="w-1 h-1 rounded-full" style={{ background: accent }}
+              animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
+            <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: accent }}>ON-CHAIN</span>
+          </motion.div>
           <WalletButton mood={state.mood} />
         </div>
       </header>
@@ -140,29 +153,30 @@ export default function Home() {
       <AnimatePresence>
         {milestone && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-5 py-2 rounded-full font-mono text-xs border whitespace-nowrap"
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.96 }}
+            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-1.5 rounded-full font-mono text-[10px] border whitespace-nowrap"
             style={{
-              background: `${accent}18`,
-              borderColor: `${accent}44`,
+              background: `${accent}12`,
+              borderColor: `${accent}33`,
               color: accent,
-              backdropFilter: "blur(12px)",
+              backdropFilter: "blur(16px)",
+              boxShadow: `0 0 24px ${accent}22`,
             }}
           >
-            ◈ MILESTONE: {milestone}
+            ◈ {milestone}
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── Hero ── */}
-      <section className="flex flex-col items-center justify-center pt-10 pb-6 px-6 text-center gap-2">
+      <section className="relative z-10 flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center gap-1.5">
         <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
-          transition={{ duration: 0.8 }}
-          className="text-4xl md:text-5xl font-bold text-white tracking-tight"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 16 }}
+          transition={{ duration: 0.7 }}
+          className="text-4xl md:text-5xl font-bold text-white/90 tracking-tight"
         >
           Meet{" "}
           <motion.span style={{ color: accent }} animate={{ color: accent }} transition={{ duration: 2 }}>
@@ -172,46 +186,47 @@ export default function Home() {
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: booted ? 1 : 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="text-white/30 font-mono text-xs max-w-sm leading-relaxed"
+          transition={{ duration: 0.7, delay: 0.25 }}
+          className="text-white/25 font-mono text-[11px] max-w-xs leading-relaxed tracking-wide"
         >
-          Neural Operational Engine — continuously evolving intelligence mapped to blockchain behavior.
+          Self-evolving neural intelligence — continuously shaped by on-chain behavior.
         </motion.p>
       </section>
 
+      {/* ── Mobile tabs ── */}
+      <div className="relative z-10 flex lg:hidden gap-px mx-4 mt-2 p-px rounded-lg overflow-hidden" style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.05)",
+      }}>
+        {(["signals", "wallet", "visualizer"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className="flex-1 py-1.5 rounded font-mono text-[9px] uppercase tracking-widest transition-all"
+            style={activeTab === tab
+              ? { background: `${accent}18`, color: accent }
+              : { color: "rgba(255,255,255,0.2)" }
+            }
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
       {/* ── Main grid ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-4 md:px-6 pb-10 max-w-[1400px] mx-auto w-full">
+      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-3 px-4 md:px-5 pb-8 pt-3 max-w-[1440px] mx-auto w-full">
 
         {/* ── Left panel ── */}
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0, x: -16 }}
           animate={{ opacity: booted ? 1 : 0, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+          transition={{ duration: 0.55, delay: 0.35 }}
           className="flex flex-col gap-3 xl:col-span-1"
         >
-          {/* Mobile tabs */}
-          <div className="flex lg:hidden gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/5">
-            {(["signals", "wallet", "image"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className="flex-1 py-1.5 rounded font-mono text-[10px] uppercase tracking-widest transition-all"
-                style={activeTab === tab
-                  ? { background: `${accent}22`, color: accent }
-                  : { color: "rgba(255,255,255,0.3)" }
-                }
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
           <div className={activeTab === "signals" ? "flex flex-col gap-3" : "hidden lg:flex flex-col gap-3"}>
             <NetworkPulse state={state} />
             <NoeStateMatrix state={state} />
           </div>
-
-          {/* Wallet panel — visible on desktop always, mobile via tab */}
           <div className={activeTab === "wallet" ? "flex flex-col gap-3" : "hidden lg:flex flex-col gap-3"}>
             <WalletPanel state={state} onStateUpdate={handleStateUpdate} />
           </div>
@@ -219,10 +234,10 @@ export default function Home() {
 
         {/* ── Center: Avatar ── */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.85 }}
+          initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: booted ? 1 : 0, scale: 1 }}
-          transition={{ duration: 0.9, delay: 0.15 }}
-          className="flex items-center justify-center py-4 lg:col-span-1"
+          transition={{ duration: 0.8, delay: 0.1 }}
+          className="flex items-center justify-center py-2 lg:col-span-1"
         >
           <NoeAvatar
             mood={state.mood}
@@ -236,14 +251,21 @@ export default function Home() {
 
         {/* ── Right: Chat ── */}
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: booted ? 1 : 0, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="rounded-xl border border-white/5 bg-white/[0.02] flex flex-col min-h-[420px] max-h-[580px] lg:col-span-1"
+          transition={{ duration: 0.55, delay: 0.35 }}
+          className="flex flex-col min-h-[440px] max-h-[600px] lg:col-span-1 rounded-xl overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.015)",
+            border: "1px solid rgba(255,255,255,0.05)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+          }}
         >
-          <div className="px-4 pt-4 pb-2 border-b border-white/5 flex items-center justify-between">
-            <span className="font-mono text-xs text-white/30 uppercase tracking-widest">Talk to Noe</span>
-            <span className="font-mono text-[10px] text-white/20" suppressHydrationWarning>
+          <div className="px-4 pt-3.5 pb-2.5 border-b border-white/[0.04] flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] text-white/25 uppercase tracking-[0.2em]">Talk to Noe</span>
+            </div>
+            <span className="font-mono text-[9px] text-white/15" suppressHydrationWarning>
               {state.timestamp ? new Date(state.timestamp).toLocaleTimeString() : "--:--:--"}
             </span>
           </div>
@@ -252,24 +274,29 @@ export default function Home() {
 
         {/* ── Far right: Noe Visualized ── */}
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: booted ? 1 : 0, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className={`xl:col-span-1 flex flex-col gap-3 ${activeTab === "image" ? "flex" : "hidden xl:flex"}`}
+          transition={{ duration: 0.55, delay: 0.45 }}
+          className={`xl:col-span-1 flex flex-col gap-3 ${activeTab === "visualizer" ? "flex" : "hidden xl:flex"}`}
         >
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] overflow-hidden" style={{ minHeight: 380 }}>
-            <div className="px-4 pt-3 pb-2 border-b border-white/5 flex items-center justify-between">
-              <span className="font-mono text-xs text-white/30 uppercase tracking-widest">Noe Visualized</span>
-              <motion.span
-                className="font-mono text-[10px] uppercase tracking-widest"
-                style={{ color: accent }}
-                animate={{ opacity: [1, 0.4, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                LIVE
-              </motion.span>
+          <div
+            className="rounded-xl overflow-hidden flex flex-col"
+            style={{
+              background: "rgba(255,255,255,0.015)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+              minHeight: 420,
+            }}
+          >
+            <div className="px-4 pt-3.5 pb-2.5 border-b border-white/[0.04] flex items-center justify-between shrink-0">
+              <span className="font-mono text-[10px] text-white/25 uppercase tracking-[0.2em]">Noe Visualized</span>
+              <div className="flex items-center gap-1.5">
+                <motion.div className="w-1 h-1 rounded-full" style={{ background: accent }}
+                  animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1.8, repeat: Infinity }} />
+                <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: accent }}>LIVE</span>
+              </div>
             </div>
-            <div className="w-full" style={{ height: "calc(100% - 40px)", minHeight: 340 }}>
+            <div className="flex-1" style={{ minHeight: 370 }}>
               <NoeVisualizer state={state} neuralSnapshot={neuralSnap} />
             </div>
           </div>
@@ -277,13 +304,15 @@ export default function Home() {
       </div>
 
       {/* ── CA Bar ── */}
-      <CABar accent={accent} />
+      <div className="relative z-10">
+        <CABar accent={accent} />
+      </div>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-white/5 px-6 py-4 flex items-center justify-between font-mono text-[11px] text-white/15">
-        <span>NOEMA-AGENT © 2025</span>
-        <span className="hidden sm:block">N.O.E — Self-evolving neural intelligence on-chain</span>
-        <span style={{ color: `${accent}55` }}>{state.cluster.replace("_", " ")}</span>
+      <footer className="relative z-10 border-t border-white/[0.03] px-6 py-3 flex items-center justify-between font-mono text-[9px] text-white/10 tracking-widest uppercase">
+        <span>NOEMA © 2025</span>
+        <span className="hidden sm:block">N.O.E — Self-evolving neural intelligence</span>
+        <span style={{ color: `${accent}44` }}>{state.cluster.replace("_", " ")}</span>
       </footer>
     </motion.main>
   )
