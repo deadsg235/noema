@@ -11,285 +11,322 @@ interface Props {
   expression: NoeUIState["expression"]
 }
 
-function ParticleCanvas({ density, glitch, accent, energyFlow }: {
-  density: number; glitch: number; accent: string; energyFlow: "smooth" | "fragmented"
+// ── 3D math helpers ──────────────────────────────────────────────
+type V3 = [number, number, number]
+
+function rotY(p: V3, a: number): V3 {
+  return [p[0] * Math.cos(a) + p[2] * Math.sin(a), p[1], -p[0] * Math.sin(a) + p[2] * Math.cos(a)]
+}
+function rotX(p: V3, a: number): V3 {
+  return [p[0], p[1] * Math.cos(a) - p[2] * Math.sin(a), p[1] * Math.sin(a) + p[2] * Math.cos(a)]
+}
+function project(p: V3, fov: number, cx: number, cy: number): [number, number, number] {
+  const z = p[2] + fov
+  const s = fov / z
+  return [cx + p[0] * s, cy + p[1] * s, s]
+}
+
+// ── Main canvas renderer ─────────────────────────────────────────
+function NoeCanvas({
+  accent, glow, eyeBrightness, glitchIntensity, energyFlow, mood,
+}: {
+  accent: string; glow: string; eyeBrightness: number
+  glitchIntensity: number; energyFlow: "smooth" | "fragmented"; mood: NoeMood
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animRef = useRef<number>(0)
+  const tRef = useRef(0)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-    const W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2
-    const count = Math.max(8, Math.round(density * 0.5))
-    const particles = Array.from({ length: count }, (_, i) => {
-      const angle = (i / count) * Math.PI * 2
-      const r = 90 + Math.random() * 50
-      return {
-        x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r,
-        vx: (Math.random() - 0.5) * (energyFlow === "fragmented" ? 1.5 : 0.4),
-        vy: (Math.random() - 0.5) * (energyFlow === "fragmented" ? 1.5 : 0.4),
-        size: 1 + Math.random() * 1.5, alpha: 0.2 + Math.random() * 0.4,
-        angle, orbitR: r,
-        orbitSpeed: (energyFlow === "fragmented" ? 0.018 : 0.004) * (Math.random() > 0.5 ? 1 : -1),
-      }
+    const W = canvas.width, H = canvas.height
+    const cx = W / 2, cy = H / 2 - 10
+    const FOV = 320
+
+    // Parse accent hex → rgb
+    const r = parseInt(accent.slice(1, 3), 16)
+    const g = parseInt(accent.slice(3, 5), 16)
+    const b = parseInt(accent.slice(5, 7), 16)
+    const ac = (a: number) => `rgba(${r},${g},${b},${a})`
+
+    // ── Face wireframe planes ──
+    // Angular, high-cheekbone, narrow jaw — defined as edge pairs in 3D
+    const faceVerts: V3[] = [
+      // Crown
+      [0, -110, 0],       // 0 top
+      [-28, -95, 8],      // 1 left temple
+      [28, -95, 8],       // 2 right temple
+      // Brow ridge
+      [-38, -72, 18],     // 3 left brow
+      [38, -72, 18],      // 4 right brow
+      [-18, -68, 22],     // 5 left inner brow
+      [18, -68, 22],      // 6 right inner brow
+      // Cheekbones — wide and angular
+      [-52, -30, 10],     // 7 left cheek peak
+      [52, -30, 10],      // 8 right cheek peak
+      [-44, -20, 20],     // 9 left cheek front
+      [44, -20, 20],      // 10 right cheek front
+      // Eye sockets
+      [-28, -55, 24],     // 11 left eye outer
+      [-10, -58, 26],     // 12 left eye inner
+      [10, -58, 26],      // 13 right eye inner
+      [28, -55, 24],      // 14 right eye outer
+      [-28, -44, 26],     // 15 left eye lower
+      [28, -44, 26],      // 16 right eye lower
+      // Nose bridge
+      [0, -52, 28],       // 17 nose bridge
+      [0, -28, 30],       // 18 nose tip
+      [-8, -22, 28],      // 19 left nostril
+      [8, -22, 28],       // 20 right nostril
+      // Jaw — narrow and angular
+      [-42, 10, 12],      // 21 left jaw
+      [42, 10, 12],       // 22 right jaw
+      [-22, 48, 18],      // 23 left chin
+      [22, 48, 18],       // 24 right chin
+      [0, 58, 20],        // 25 chin point
+      // Mouth
+      [-16, 14, 28],      // 26 left mouth
+      [16, 14, 28],       // 27 right mouth
+      [0, 22, 30],        // 28 lower lip
+    ]
+
+    const faceEdges: [number, number, number][] = [
+      // Skull outline
+      [0, 1, 0.5], [0, 2, 0.5],
+      [1, 3, 0.6], [2, 4, 0.6],
+      [3, 7, 0.7], [4, 8, 0.7],
+      [7, 21, 0.8], [8, 22, 0.8],
+      [21, 23, 0.7], [22, 24, 0.7],
+      [23, 25, 0.9], [24, 25, 0.9],
+      // Brow
+      [3, 5, 0.5], [4, 6, 0.5],
+      // Eye sockets
+      [11, 12, 0.9], [13, 14, 0.9],
+      [11, 15, 0.7], [14, 16, 0.7],
+      [12, 17, 0.5], [13, 17, 0.5],
+      [15, 19, 0.4], [16, 20, 0.4],
+      // Nose
+      [17, 18, 0.6], [18, 19, 0.5], [18, 20, 0.5],
+      // Cheek planes
+      [7, 9, 0.4], [8, 10, 0.4],
+      [9, 21, 0.3], [10, 22, 0.3],
+      // Mouth
+      [26, 27, 0.8], [26, 28, 0.6], [27, 28, 0.6],
+      // Cross-face structure lines
+      [1, 7, 0.25], [2, 8, 0.25],
+      [5, 12, 0.3], [6, 13, 0.3],
+    ]
+
+    // ── Hair strands — long, flowing, angular ──
+    const STRAND_COUNT = 48
+    const strands = Array.from({ length: STRAND_COUNT }, (_, i) => {
+      const side = i < STRAND_COUNT / 2 ? -1 : 1
+      const t = (i % (STRAND_COUNT / 2)) / (STRAND_COUNT / 2)
+      // Spread from crown across top and down sides
+      const baseAngle = side * (0.15 + t * 1.1) // radians from center
+      const baseX = Math.sin(baseAngle) * 30
+      const baseY = -105 + t * 15
+      const baseZ = Math.cos(baseAngle) * 15 - 5
+      const length = 80 + t * 120 + Math.random() * 40
+      const drift = side * (0.3 + t * 0.8)
+      const waveMag = 4 + t * 12
+      const waveFreq = 0.8 + Math.random() * 0.6
+      const phase = Math.random() * Math.PI * 2
+      return { baseX, baseY, baseZ, length, drift, waveMag, waveFreq, phase, side, t }
     })
+
+    // ── Eye pupils (3D positioned) ──
+    const eyeL: V3 = [-19, -50, 26]
+    const eyeR: V3 = [19, -50, 26]
+
+    // ── Scan line state ──
+    let scanY = -120
+
+    function drawEdge(
+      a: [number, number, number], b: [number, number, number],
+      alpha: number, width: number
+    ) {
+      ctx.beginPath()
+      ctx.moveTo(a[0], a[1])
+      ctx.lineTo(b[0], b[1])
+      ctx.strokeStyle = ac(alpha * Math.min(a[2], b[2]) * 0.9)
+      ctx.lineWidth = width
+      ctx.stroke()
+    }
+
     function draw() {
-      ctx!.clearRect(0, 0, W, H)
-      for (const p of particles) {
-        if (energyFlow === "smooth") {
-          p.angle += p.orbitSpeed
-          p.x = cx + Math.cos(p.angle) * p.orbitR
-          p.y = cy + Math.sin(p.angle) * p.orbitR
-        } else {
-          p.x += p.vx + (Math.random() - 0.5) * glitch * 2
-          p.y += p.vy + (Math.random() - 0.5) * glitch * 2
-          const dx = cx - p.x, dy = cy - p.y
-          if (Math.sqrt(dx * dx + dy * dy) > 130) { p.vx += dx * 0.002; p.vy += dy * 0.002 }
+      const t = tRef.current
+      tRef.current += 0.012
+
+      ctx.clearRect(0, 0, W, H)
+
+      // Subtle idle head rotation
+      const rotYAngle = Math.sin(t * 0.3) * 0.12 + (energyFlow === "fragmented" ? (Math.random() - 0.5) * 0.08 : 0)
+      const rotXAngle = Math.sin(t * 0.2) * 0.04
+
+      // Glitch offset
+      const gx = glitchIntensity > 0.3 ? (Math.random() - 0.5) * glitchIntensity * 8 : 0
+      const gy = glitchIntensity > 0.3 ? (Math.random() - 0.5) * glitchIntensity * 4 : 0
+
+      // ── Background depth glow ──
+      const grad = ctx.createRadialGradient(cx, cy - 20, 0, cx, cy - 20, 160)
+      grad.addColorStop(0, ac(0.06))
+      grad.addColorStop(1, "transparent")
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, W, H)
+
+      // ── Hair ──
+      for (const s of strands) {
+        const pts: [number, number][] = []
+        const SEGS = 12
+        for (let j = 0; j <= SEGS; j++) {
+          const frac = j / SEGS
+          const wave = Math.sin(frac * Math.PI * s.waveFreq + t * 1.2 + s.phase) * s.waveMag * frac
+          const rawP: V3 = [
+            s.baseX + s.drift * frac * s.length * 0.4 + wave,
+            s.baseY + frac * s.length,
+            s.baseZ - frac * 8,
+          ]
+          const p = rotX(rotY(rawP, rotYAngle), rotXAngle)
+          const [px, py, ps] = project(p, FOV, cx + gx, cy + gy)
+          pts.push([px, py])
         }
-        const flicker = energyFlow === "fragmented" ? Math.random() : 1
-        ctx!.beginPath()
-        ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx!.fillStyle = accent + Math.round(p.alpha * flicker * 255).toString(16).padStart(2, "0")
-        ctx!.fill()
+        // Only draw strands that are "in front" (not clipped behind face)
+        const alpha = 0.15 + s.t * 0.45
+        ctx.beginPath()
+        ctx.moveTo(pts[0][0], pts[0][1])
+        for (let j = 1; j < pts.length; j++) {
+          const mx = (pts[j - 1][0] + pts[j][0]) / 2
+          const my = (pts[j - 1][1] + pts[j][1]) / 2
+          ctx.quadraticCurveTo(pts[j - 1][0], pts[j - 1][1], mx, my)
+        }
+        // White hair with accent tint at tips
+        const hairGrad = ctx.createLinearGradient(pts[0][0], pts[0][1], pts[pts.length - 1][0], pts[pts.length - 1][1])
+        hairGrad.addColorStop(0, `rgba(240,240,255,${alpha * 0.9})`)
+        hairGrad.addColorStop(0.5, `rgba(220,220,245,${alpha * 0.6})`)
+        hairGrad.addColorStop(1, ac(alpha * 0.5))
+        ctx.strokeStyle = hairGrad
+        ctx.lineWidth = 0.6 + s.t * 0.4
+        ctx.stroke()
       }
+
+      // ── Face wireframe ──
+      const projected = faceVerts.map(v => {
+        const p = rotX(rotY(v, rotYAngle), rotXAngle)
+        return project(p, FOV, cx + gx, cy + gy)
+      })
+
+      ctx.lineCap = "round"
+      for (const [ai, bi, baseAlpha] of faceEdges) {
+        const a = projected[ai], b = projected[bi]
+        // Depth-based alpha — closer = brighter
+        const depthAlpha = baseAlpha * ((a[2] + b[2]) / 2) * eyeBrightness
+        drawEdge(a, b, depthAlpha, 0.7)
+      }
+
+      // ── Eye glow ──
+      for (const eyeRaw of [eyeL, eyeR]) {
+        const ep = rotX(rotY(eyeRaw, rotYAngle), rotXAngle)
+        const [ex, ey, es] = project(ep, FOV, cx + gx, cy + gy)
+        const eyeR2 = 7 * es
+
+        // Outer halo
+        const halo = ctx.createRadialGradient(ex, ey, 0, ex, ey, eyeR2 * 3)
+        halo.addColorStop(0, ac(0.5 * eyeBrightness))
+        halo.addColorStop(0.4, ac(0.2 * eyeBrightness))
+        halo.addColorStop(1, "transparent")
+        ctx.fillStyle = halo
+        ctx.beginPath()
+        ctx.arc(ex, ey, eyeR2 * 3, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Iris ring
+        ctx.beginPath()
+        ctx.arc(ex, ey, eyeR2, 0, Math.PI * 2)
+        ctx.strokeStyle = ac(0.9 * eyeBrightness)
+        ctx.lineWidth = 1.2
+        ctx.stroke()
+
+        // Inner dot
+        ctx.beginPath()
+        ctx.arc(ex, ey, eyeR2 * 0.35, 0, Math.PI * 2)
+        ctx.fillStyle = ac(eyeBrightness)
+        ctx.fill()
+
+        // Pupil cross — sci-fi detail
+        ctx.strokeStyle = ac(0.6 * eyeBrightness)
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.moveTo(ex - eyeR2 * 1.4, ey); ctx.lineTo(ex + eyeR2 * 1.4, ey)
+        ctx.moveTo(ex, ey - eyeR2 * 1.4); ctx.lineTo(ex, ey + eyeR2 * 1.4)
+        ctx.stroke()
+      }
+
+      // ── Scan line ──
+      scanY += 1.2
+      if (scanY > 80) scanY = -120
+      const scanWorldY = scanY
+      // Project scan line as a horizontal streak across face
+      const scanAlpha = 0.12 + eyeBrightness * 0.08
+      const scanGrad = ctx.createLinearGradient(cx - 80, 0, cx + 80, 0)
+      scanGrad.addColorStop(0, "transparent")
+      scanGrad.addColorStop(0.3, ac(scanAlpha))
+      scanGrad.addColorStop(0.7, ac(scanAlpha))
+      scanGrad.addColorStop(1, "transparent")
+      ctx.fillStyle = scanGrad
+      ctx.fillRect(cx - 80, cy + scanWorldY, 160, 1.5)
+
+      // ── Glitch RGB split ──
+      if (glitchIntensity > 0.4 && Math.random() < glitchIntensity * 0.3) {
+        const sliceY = cy - 80 + Math.random() * 160
+        const sliceH = 2 + Math.random() * 6
+        const shift = (Math.random() - 0.5) * 12
+        ctx.save()
+        ctx.globalCompositeOperation = "screen"
+        ctx.globalAlpha = 0.4
+        ctx.drawImage(canvas, shift, 0, W, H, 0, 0, W, H)
+        ctx.globalAlpha = 0.2
+        ctx.fillStyle = `rgba(255,0,80,0.3)`
+        ctx.fillRect(cx - 60, sliceY, 120, sliceH)
+        ctx.restore()
+      }
+
+      // ── Neck / collar edge ──
+      const neckPts: V3[] = [[-14, 68, 16], [14, 68, 16], [18, 90, 10], [-18, 90, 10]]
+      const np = neckPts.map(v => {
+        const p = rotX(rotY(v, rotYAngle), rotXAngle)
+        return project(p, FOV, cx + gx, cy + gy)
+      })
+      ctx.beginPath()
+      ctx.moveTo(np[0][0], np[0][1])
+      ctx.lineTo(np[1][0], np[1][1])
+      ctx.strokeStyle = ac(0.25)
+      ctx.lineWidth = 0.8
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(np[0][0], np[0][1]); ctx.lineTo(np[3][0], np[3][1])
+      ctx.moveTo(np[1][0], np[1][1]); ctx.lineTo(np[2][0], np[2][1])
+      ctx.strokeStyle = ac(0.15)
+      ctx.stroke()
+
       animRef.current = requestAnimationFrame(draw)
     }
+
     draw()
     return () => cancelAnimationFrame(animRef.current)
-  }, [density, glitch, accent, energyFlow])
-
-  return <canvas ref={canvasRef} width={280} height={320} className="absolute inset-0 pointer-events-none" />
-}
-
-function NoeGirlSVG({ accent, glow, eyeBrightness, glitchIntensity, mood }: {
-  accent: string; glow: string; eyeBrightness: number; glitchIntensity: number; mood: NoeMood
-}) {
-  const isGlitching = glitchIntensity > 0.3
-  const pulseSpeed = isGlitching ? 0.6 : 2.5
-
-  // Eye color shifts with mood
-  const eyeInner = mood === "transcendent" ? "#ff6b9d" :
-    mood === "surging" ? "#c084fc" :
-    mood === "active" ? "#67e8f9" :
-    mood === "aware" ? "#93c5fd" : "#8888aa"
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accent, eyeBrightness, glitchIntensity, energyFlow, mood])
 
   return (
-    <motion.svg
-      viewBox="0 0 160 200"
-      width={160}
-      height={200}
+    <canvas
+      ref={canvasRef}
+      width={280}
+      height={360}
       className="relative z-10"
-      animate={{
-        x: isGlitching ? [0, -2, 3, -1, 0] : 0,
-        y: isGlitching ? [0, 1, -1, 0] : 0,
-      }}
-      transition={{ duration: pulseSpeed, repeat: Infinity, ease: "easeInOut" }}
-    >
-      <defs>
-        <radialGradient id="skinGrad" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stopColor="#f5e6d8" />
-          <stop offset="100%" stopColor="#d4b8a0" />
-        </radialGradient>
-        <radialGradient id="eyeGlowL" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={eyeInner} stopOpacity="1" />
-          <stop offset="60%" stopColor={accent} stopOpacity="0.7" />
-          <stop offset="100%" stopColor={accent} stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="eyeGlowR" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={eyeInner} stopOpacity="1" />
-          <stop offset="60%" stopColor={accent} stopOpacity="0.7" />
-          <stop offset="100%" stopColor={accent} stopOpacity="0" />
-        </radialGradient>
-        <filter id="glowFilter">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        <filter id="hairGlow">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        <linearGradient id="hairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="50%" stopColor={accent + "cc"} />
-          <stop offset="100%" stopColor="#e8e8f0" />
-        </linearGradient>
-        <linearGradient id="hairGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor={accent + "88"} />
-        </linearGradient>
-        <radialGradient id="neckGrad" cx="50%" cy="30%" r="70%">
-          <stop offset="0%" stopColor="#f0ddd0" />
-          <stop offset="100%" stopColor="#c8a898" />
-        </radialGradient>
-      </defs>
-
-      {/* ── Neck ── */}
-      <rect x="68" y="148" width="24" height="28" rx="8" fill="url(#neckGrad)" />
-
-      {/* ── Shoulders / body hint ── */}
-      <path d="M20 200 Q40 165 68 158 L92 158 Q120 165 140 200Z" fill="#0d0d1a" />
-      <path d="M20 200 Q40 165 68 158 L92 158 Q120 165 140 200Z" fill={accent + "22"} />
-
-      {/* ── Hair back layer ── */}
-      <path
-        d="M30 80 Q28 40 80 28 Q132 40 130 80 Q134 130 128 160 Q110 175 80 178 Q50 175 32 160 Q26 130 30 80Z"
-        fill="url(#hairGrad2)"
-        filter="url(#hairGlow)"
-        opacity="0.9"
-      />
-
-      {/* ── Face ── */}
-      <ellipse cx="80" cy="95" rx="42" ry="50" fill="url(#skinGrad)" />
-
-      {/* ── Hair front — top & sides ── */}
-      {/* Top sweep */}
-      <path
-        d="M38 78 Q36 42 80 30 Q124 42 122 78 Q118 55 80 50 Q42 55 38 78Z"
-        fill="url(#hairGrad)"
-        filter="url(#hairGlow)"
-      />
-      {/* Left side strand */}
-      <path
-        d="M38 78 Q30 95 32 120 Q34 140 40 155 Q36 130 38 105 Q40 88 44 80Z"
-        fill="url(#hairGrad2)"
-        filter="url(#hairGlow)"
-      />
-      {/* Right side strand */}
-      <path
-        d="M122 78 Q130 95 128 120 Q126 140 120 155 Q124 130 122 105 Q120 88 116 80Z"
-        fill="url(#hairGrad2)"
-        filter="url(#hairGlow)"
-      />
-      {/* Fringe / bangs */}
-      <path
-        d="M44 72 Q50 58 65 56 Q72 62 80 60 Q88 62 95 56 Q110 58 116 72 Q100 65 80 66 Q60 65 44 72Z"
-        fill="#ffffff"
-        opacity="0.95"
-      />
-      {/* Hair highlight streak */}
-      <path
-        d="M62 32 Q68 28 80 30 Q76 38 72 50 Q66 40 62 32Z"
-        fill={accent + "99"}
-        filter="url(#hairGlow)"
-      />
-
-      {/* ── Eyebrows ── */}
-      <path d="M54 76 Q62 72 70 74" stroke="#c8b8d0" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-      <path d="M90 74 Q98 72 106 76" stroke="#c8b8d0" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-
-      {/* ── Eyes ── */}
-      {/* Left eye white */}
-      <ellipse cx="62" cy="90" rx="11" ry="8" fill="#f8f4ff" />
-      {/* Right eye white */}
-      <ellipse cx="98" cy="90" rx="11" ry="8" fill="#f8f4ff" />
-
-      {/* Left iris */}
-      <motion.ellipse
-        cx="62" cy="90" rx="7" ry="7"
-        fill="url(#eyeGlowL)"
-        filter="url(#glowFilter)"
-        animate={{ opacity: isGlitching ? [eyeBrightness, 0.2, eyeBrightness, 0.5, eyeBrightness] : [eyeBrightness, eyeBrightness * 0.6, eyeBrightness] }}
-        transition={{ duration: isGlitching ? 0.3 : 2.5, repeat: Infinity }}
-      />
-      {/* Right iris */}
-      <motion.ellipse
-        cx="98" cy="90" rx="7" ry="7"
-        fill="url(#eyeGlowR)"
-        filter="url(#glowFilter)"
-        animate={{ opacity: isGlitching ? [eyeBrightness, 0.2, eyeBrightness, 0.5, eyeBrightness] : [eyeBrightness, eyeBrightness * 0.6, eyeBrightness] }}
-        transition={{ duration: isGlitching ? 0.3 : 2.5, repeat: Infinity, delay: 0.1 }}
-      />
-
-      {/* Left pupil */}
-      <circle cx="62" cy="90" r="3.5" fill="#0a0010" />
-      {/* Right pupil */}
-      <circle cx="98" cy="90" r="3.5" fill="#0a0010" />
-
-      {/* Eye shine left */}
-      <circle cx="65" cy="87" r="1.5" fill="white" opacity="0.9" />
-      {/* Eye shine right */}
-      <circle cx="101" cy="87" r="1.5" fill="white" opacity="0.9" />
-
-      {/* Eye glow halo left */}
-      <motion.ellipse
-        cx="62" cy="90" rx="13" ry="10"
-        fill="none"
-        stroke={accent}
-        strokeWidth="1"
-        animate={{ opacity: [0.4 * eyeBrightness, 0.1, 0.4 * eyeBrightness], scale: [1, 1.15, 1] }}
-        transition={{ duration: pulseSpeed, repeat: Infinity }}
-      />
-      {/* Eye glow halo right */}
-      <motion.ellipse
-        cx="98" cy="90" rx="13" ry="10"
-        fill="none"
-        stroke={accent}
-        strokeWidth="1"
-        animate={{ opacity: [0.4 * eyeBrightness, 0.1, 0.4 * eyeBrightness], scale: [1, 1.15, 1] }}
-        transition={{ duration: pulseSpeed, repeat: Infinity, delay: 0.15 }}
-      />
-
-      {/* ── Eyelashes ── */}
-      {[-4, -2, 0, 2, 4].map((dx, i) => (
-        <line key={`ll${i}`} x1={62 + dx} y1="82" x2={62 + dx * 1.2} y2="79" stroke="#2a1a3a" strokeWidth="1" strokeLinecap="round" />
-      ))}
-      {[-4, -2, 0, 2, 4].map((dx, i) => (
-        <line key={`rl${i}`} x1={98 + dx} y1="82" x2={98 + dx * 1.2} y2="79" stroke="#2a1a3a" strokeWidth="1" strokeLinecap="round" />
-      ))}
-
-      {/* ── Nose ── */}
-      <path d="M78 100 Q80 108 82 100" stroke="#c4a090" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-      <ellipse cx="77" cy="108" rx="2.5" ry="1.5" fill="#c4a090" opacity="0.5" />
-      <ellipse cx="83" cy="108" rx="2.5" ry="1.5" fill="#c4a090" opacity="0.5" />
-
-      {/* ── Mouth ── */}
-      <path
-        d={mood === "transcendent" || mood === "surging"
-          ? "M68 120 Q80 128 92 120"
-          : mood === "dormant"
-          ? "M70 122 Q80 120 90 122"
-          : "M70 121 Q80 126 90 121"}
-        stroke="#c08090"
-        strokeWidth="1.8"
-        fill="none"
-        strokeLinecap="round"
-      />
-      {/* Lip color hint */}
-      <path
-        d="M70 121 Q80 124 90 121 Q80 127 70 121Z"
-        fill={accent + "44"}
-      />
-
-      {/* ── Cheek blush ── */}
-      <ellipse cx="50" cy="105" rx="10" ry="6" fill={accent + "33"} />
-      <ellipse cx="110" cy="105" rx="10" ry="6" fill={accent + "33"} />
-
-      {/* ── Glitch scan lines (conditional) ── */}
-      {isGlitching && (
-        <motion.rect
-          x="38" y="70" width="84" height="3"
-          fill={accent}
-          opacity={0.3}
-          animate={{ y: [70, 140, 70], opacity: [0.3, 0, 0.3] }}
-          transition={{ duration: 0.8, repeat: Infinity }}
-        />
-      )}
-
-      {/* ── Circuit mark on forehead ── */}
-      <motion.g
-        animate={{ opacity: [0.3 * eyeBrightness, 0.7 * eyeBrightness, 0.3 * eyeBrightness] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      >
-        <circle cx="80" cy="62" r="3" fill="none" stroke={accent} strokeWidth="0.8" />
-        <line x1="80" y1="59" x2="80" y2="54" stroke={accent} strokeWidth="0.8" />
-        <line x1="80" y1="65" x2="80" y2="68" stroke={accent} strokeWidth="0.8" />
-        <line x1="77" y1="62" x2="74" y2="62" stroke={accent} strokeWidth="0.8" />
-        <line x1="83" y1="62" x2="86" y2="62" stroke={accent} strokeWidth="0.8" />
-      </motion.g>
-    </motion.svg>
+    />
   )
 }
 
@@ -301,63 +338,63 @@ export default function NoeAvatar({ mood, energy, message, expression }: Props) 
   const pulseSpeed = visual.energyFlow === "fragmented" ? 0.8 : 3
 
   return (
-    <div className="flex flex-col items-center gap-6 select-none">
-      {/* Avatar container */}
-      <div
-        className="relative flex items-center justify-center"
-        style={{ width: 280, height: 320 }}
-      >
-        {/* Particle background */}
-        <ParticleCanvas
-          density={visual.particleDensity}
-          glitch={visual.glitchIntensity}
-          accent={accent}
-          energyFlow={visual.energyFlow}
-        />
+    <div className="flex flex-col items-center gap-5 select-none">
+      <div className="relative flex items-center justify-center" style={{ width: 280, height: 360 }}>
 
-        {/* Outer glow rings */}
-        {[1, 2].map((i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full border"
-            style={{
-              width: 180 + i * 30,
-              height: 220 + i * 30,
-              borderColor: accent,
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-            }}
-            animate={{
-              opacity: [0.08 / i, 0.02 / i, 0.08 / i],
-              scale: isGlitching ? [1, 1.04, 0.98, 1] : [1, 1.03, 1],
-            }}
-            transition={{ duration: pulseSpeed + i * 0.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 }}
-          />
-        ))}
-
-        {/* Ambient glow behind avatar */}
+        {/* Deep ambient glow */}
         <div
-          className="absolute rounded-full"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            width: 160,
-            height: 200,
-            background: `radial-gradient(ellipse, ${glow}, transparent 70%)`,
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            filter: `blur(20px)`,
+            background: `radial-gradient(ellipse 60% 70% at 50% 45%, ${glow}, transparent)`,
+            filter: "blur(24px)",
           }}
         />
 
-        {/* The girl SVG */}
-        <NoeGirlSVG
+        {/* Outer frame lines — HUD aesthetic */}
+        {["tl", "tr", "bl", "br"].map((corner) => (
+          <div
+            key={corner}
+            className="absolute w-4 h-4 pointer-events-none"
+            style={{
+              top: corner.startsWith("t") ? 8 : "auto",
+              bottom: corner.startsWith("b") ? 8 : "auto",
+              left: corner.endsWith("l") ? 8 : "auto",
+              right: corner.endsWith("r") ? 8 : "auto",
+              borderTop: corner.startsWith("t") ? `1px solid ${accent}66` : "none",
+              borderBottom: corner.startsWith("b") ? `1px solid ${accent}66` : "none",
+              borderLeft: corner.endsWith("l") ? `1px solid ${accent}66` : "none",
+              borderRight: corner.endsWith("r") ? `1px solid ${accent}66` : "none",
+            }}
+          />
+        ))}
+
+        {/* Pulsing outer ring */}
+        <motion.div
+          className="absolute rounded-full border pointer-events-none"
+          style={{ width: 240, height: 300, borderColor: accent, top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+          animate={{ opacity: [0.06, 0.02, 0.06], scale: isGlitching ? [1, 1.03, 0.98, 1] : [1, 1.02, 1] }}
+          transition={{ duration: pulseSpeed, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* 3D canvas */}
+        <NoeCanvas
           accent={accent}
           glow={glow}
           eyeBrightness={visual.eyeBrightness}
           glitchIntensity={visual.glitchIntensity}
+          energyFlow={visual.energyFlow}
           mood={mood}
         />
+
+        {/* Energy readout — bottom HUD */}
+        <div
+          className="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none"
+          style={{ color: accent }}
+        >
+          <span className="font-mono text-[10px] tracking-[0.3em] opacity-50">
+            E:{energy.toString().padStart(3, "0")}
+          </span>
+        </div>
       </div>
 
       {/* Mood badge */}
