@@ -40,6 +40,7 @@ function NoeCanvas({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const cv = canvas
     const ctx = canvas.getContext("2d")
     if (!ctx) return
     const c = ctx
@@ -279,7 +280,7 @@ function NoeCanvas({
         c.save()
         c.globalCompositeOperation = "screen"
         c.globalAlpha = 0.4
-        c.drawImage(canvas, shift, 0, W, H, 0, 0, W, H)
+        c.drawImage(cv, shift, 0, W, H, 0, 0, W, H)
         c.globalAlpha = 0.2
         c.fillStyle = `rgba(255,0,80,0.3)`
         c.fillRect(cx - 60, sliceY, 120, sliceH)
